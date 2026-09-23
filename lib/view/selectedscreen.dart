@@ -660,46 +660,82 @@ class _LanguageSelectedScreenState extends State<LanguageSelectedScreen> {
                                   "Kalady Sri Adi Shankara\n Madom, Telangana",
                                   style: Fontpalette.appheading,
                                 ),
+                                SizedBox(width: 40),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Container(
+                                      padding: EdgeInsets.all(4.h),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(30.r),
+                                        border: Border.all(
+                                          color: HexColor("#F8A300"),
+                                          width: 3.h,
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          _LanguageTab(
+                                            label: "English",
+                                            selected: _selectedLang == 1,
+                                            onTap: () {
+                                              setState(() => _selectedLang = 1);
+                                            },
+                                          ),
+                                          _LanguageTab(
+                                            label: "తెలుగు",
+                                            selected: _selectedLang == 0,
+                                            onTap: () {
+                                              setState(() => _selectedLang = 0);
+                                            },
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ],
                             ),
                             16.verticalSpace,
                             // Language tab switcher
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Container(
-                                  padding: EdgeInsets.all(4.h),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(30.r),
-                                    border: Border.all(
-                                      color: HexColor("#F8A300"),
-                                      width: 3.h,
-                                    ),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      _LanguageTab(
-                                        label: "English",
-                                        selected: _selectedLang == 1,
-                                        onTap: () {
-                                          setState(() => _selectedLang = 1);
-                                        },
-                                      ),
-                                      _LanguageTab(
-                                        label: "తెలుగు",
-                                        selected: _selectedLang == 0,
-                                        onTap: () {
-                                          setState(() => _selectedLang = 0);
-                                        },
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                            10.verticalSpace,
+                            // Row(
+                            //   mainAxisAlignment: MainAxisAlignment.center,
+                            //   children: [
+                            //     Container(
+                            //       padding: EdgeInsets.all(4.h),
+                            //       decoration: BoxDecoration(
+                            //         color: Colors.white,
+                            //         borderRadius: BorderRadius.circular(30.r),
+                            //         border: Border.all(
+                            //           color: HexColor("#F8A300"),
+                            //           width: 3.h,
+                            //         ),
+                            //       ),
+                            //       child: Row(
+                            //         mainAxisSize: MainAxisSize.min,
+                            //         children: [
+                            //           _LanguageTab(
+                            //             label: "English",
+                            //             selected: _selectedLang == 1,
+                            //             onTap: () {
+                            //               setState(() => _selectedLang = 1);
+                            //             },
+                            //           ),
+                            //           _LanguageTab(
+                            //             label: "తెలుగు",
+                            //             selected: _selectedLang == 0,
+                            //             onTap: () {
+                            //               setState(() => _selectedLang = 0);
+                            //             },
+                            //           ),
+                            //         ],
+                            //       ),
+                            //     ),
+                            //   ],
+                            // ),
+                            //10.verticalSpace,
                             Container(
                               height: 500.h,
                               decoration: BoxDecoration(
@@ -787,8 +823,8 @@ class _LanguageSelectedScreenState extends State<LanguageSelectedScreen> {
                                                 child: Center(
                                                   child: Text(
                                                     _selectedLang == 1
-                                                        ? "ANNADHANAM (donate)"
-                                                        : "అన్నదానం (విరాళం ఇవ్వండి)",
+                                                        ? "ANNADHANAM"
+                                                        : "అన్నదానం",
                                                     style:
                                                         Fontpalette.white45500,
                                                   ),
