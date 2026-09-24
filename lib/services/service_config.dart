@@ -38,7 +38,7 @@ class ServiceConfig {
   }
 
   Future<Result> getDeities() async {
-    Result res = await BaseClient.get('deities');
+    Result res = await BaseClient.get('Dietieskiosk');
     if (res.isError) {
       ErrorResponseModel errorResponseModel = ErrorResponseModel(
         errorMessage: 'OOps...!, Something went wrong',

@@ -17,10 +17,12 @@ class DeitiesData {
   int? id;
   String? name;
   String? nameMal;
-  DeitiesData({this.id, this.name, this.nameMal});
+  dynamic rateeditable;
+  DeitiesData({this.id, this.name, this.nameMal,this.rateeditable});
   DeitiesData.fromJson(Map<String, dynamic> json) {
     id = json['id'];
     name = json['name'];
     nameMal = json['name_mal'];
+    rateeditable = json['rate_editable'];
   }
 }

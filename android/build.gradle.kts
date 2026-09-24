@@ -15,6 +15,17 @@ subprojects {
     val newSubprojectBuildDir: Directory = newBuildDir.dir(project.name)
     project.layout.buildDirectory.value(newSubprojectBuildDir)
 }
+// Some plugins (e.g. flutter_thermal_printer) still compile against
+// android-33, but their AndroidX dependencies need 34+.
+subprojects {
+    afterEvaluate {
+        if (plugins.hasPlugin("com.android.library")) {
+            extensions.configure<com.android.build.gradle.LibraryExtension> {
+                compileSdk = 36
+            }
+        }
+    }
+}
 subprojects {
     project.evaluationDependsOn(":app")
 }

@@ -15,9 +15,19 @@ import 'package:kalady_kiosk/view/homepage.dart';
 import 'package:provider/provider.dart';
 
 class Bookpoojascreen extends StatefulWidget {
-  const Bookpoojascreen({super.key, this.lanid, this.isDonate = false});
+  const Bookpoojascreen({
+    super.key,
+    this.lanid,
+    this.deityId,
+    this.deityName,
+    this.rateEditable = false,
+  });
   final int? lanid;
-  final bool isDonate;
+  // Deity's rate_editable == 1: always show the Amount field, even with poojas.
+  final bool rateEditable;
+  // Deity chosen on the previous screen; when set, the deity picker is hidden.
+  final int? deityId;
+  final String? deityName;
   @override
   State<Bookpoojascreen> createState() => _BookpoojascreenState();
 }
@@ -129,27 +139,30 @@ class _BookpoojascreenState extends State<Bookpoojascreen> {
 
   final ValueNotifier<bool> isEnabled = ValueNotifier<bool>(false);
 
+  // Amount is typed in when the deity has no poojas or its rate is editable.
+  bool _showAmount(HomeProvider home) =>
+      widget.rateEditable || home.isAmountOnly;
+
+  // Rate-editable deity: pre-fill the amount with the pooja's rate.
+  void _onPoojaSelected(String? rate) {
+    if (!widget.rateEditable) return;
+    final value = double.tryParse(rate ?? '');
+    amt.text =
+        value == null
+            ? ''
+            : value == value.roundToDouble()
+            ? value.toStringAsFixed(0)
+            : value.toString();
+  }
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final home = context.read<HomeProvider>();
-      if (widget.isDonate) {
-        //home.updateDietyId(id: null, name: "DONATION");
-        home.updateDietyId(id: 8, name: "DONATION");
-        // Pull the Malayalam label straight from the deities API (name_mal for
-        // id 8) instead of a hand-maintained translation, with the previous
-        // hardcoded guess kept only as a fallback if that data isn't loaded yet.
-        final donationDeities =
-            home.deitiesResponse?.data?.where((d) => d.id == 8).toList() ?? [];
-        final donationNameMal =
-            donationDeities.isNotEmpty ? donationDeities.first.nameMal : null;
-        home.updateSelextedPoojaId(
-          poojaname:
-              widget.lanid == 1 ? "DONATION" : (donationNameMal ?? "ദാനം"),
-          poojaid: 29,
-          rate: null,
-        );
+      if (widget.deityId != null) {
+        home.updateDietyId(id: widget.deityId, name: widget.deityName);
+        home.updateSelextedPoojaId(poojaid: null, poojaname: null, rate: null);
       } else {
         if (home.deitiesResponse?.data != null &&
             home.deitiesResponse!.data!.isNotEmpty) {
@@ -166,21 +179,6 @@ class _BookpoojascreenState extends State<Bookpoojascreen> {
         }
       }
     });
-  }
-
-  // Resolves the diety text saved with a pooja entry. For a normal deity
-  // selection this is already correctly localized by updateDietyId(); for
-  // Donation (an internal "DONATION" sentinel, kept in English so the many
-  // == "DONATION" checks elsewhere keep working) this looks up the real
-  // Malayalam label from the deities API (id 8) instead of a guessed one.
-  String? _dietyDisplayName(HomeProvider home) {
-    if (home.dietyIName != "DONATION") return home.dietyIName;
-    if (widget.lanid == 1) return "DONATION";
-    final donationDeities =
-        home.deitiesResponse?.data?.where((d) => d.id == 8).toList() ?? [];
-    return donationDeities.isNotEmpty
-        ? (donationDeities.first.nameMal ?? "ദാനം")
-        : "ദാനം";
   }
 
   @override
@@ -453,7 +451,7 @@ class _BookpoojascreenState extends State<Bookpoojascreen> {
                                       },
                                     ),
                                   ),
-                                  if (!widget.isDonate) ...[
+                                  if (widget.deityId == null) ...[
                                     Row(
                                       children: [
                                         Text(
@@ -562,98 +560,103 @@ class _BookpoojascreenState extends State<Bookpoojascreen> {
                                     ),
                                   ],
                                   10.verticalSpace,
-                                  home.dietyIName == "DONATION"
-                                      ? Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            "Amount",
-                                            style: Fontpalette.blackinter40400,
+                                  if (!home.isAmountOnly)
+                                    home.len > 15
+                                        ? SizedBox(
+                                          height: 400.h,
+                                          child: Listpooja(
+                                            len: home.len,
+                                            lanid: widget.lanid,
+                                            onPoojaSelected: _onPoojaSelected,
                                           ),
-                                          5.verticalSpace,
-                                          Container(
-                                            height: 50.h,
-
-                                            decoration: BoxDecoration(
-                                              borderRadius:
-                                                  BorderRadius.circular(21.r),
-                                              border: Border.all(
-                                                color: Colors.black,
-                                              ),
-                                            ),
-                                            child:
-                                            // TextField(
-                                            //   keyboardType:
-                                            //       TextInputType.numberWithOptions(decimal: true),
-                                            //   controller: amt,
-                                            //   style:
-                                            //       Fontpalette.blackinter45400,
-                                            //   textAlignVertical:
-                                            //       TextAlignVertical.center,
-                                            //   decoration: InputDecoration(
-                                            //     isDense: true,
-                                            //     contentPadding:
-                                            //         EdgeInsets.symmetric(
-                                            //           vertical: 15.h,
-                                            //           horizontal: 40.w,
-                                            //         ),
-                                            //     hintText: " ",
-                                            //     hintStyle:
-                                            //         Fontpalette.blackinter24400,
-                                            //     border: InputBorder.none,
-                                            //   ),
-                                            // ),
-                                            TextField(
-                                              keyboardType:
-                                                  TextInputType.numberWithOptions(
-                                                    decimal: true,
-                                                  ),
-                                              inputFormatters: [
-                                                FilteringTextInputFormatter
-                                                    .digitsOnly,
-                                              ],
-                                              controller: amt,
-                                              style:
-                                                  Fontpalette.blackinter45400,
-                                              textAlignVertical:
-                                                  TextAlignVertical.center,
-                                              decoration: InputDecoration(
-                                                isDense: true,
-                                                contentPadding:
-                                                    EdgeInsets.symmetric(
-                                                      vertical: 15.h,
-                                                      horizontal: 40.w,
-                                                    ),
-
-                                                hintText: " ",
-                                                hintStyle:
-                                                    Fontpalette.blackinter24400,
-                                                border: InputBorder.none,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      )
-                                      : home.len > 15
-                                      ? SizedBox(
-                                        height: 400.h,
-                                        child: Listpooja(
+                                        )
+                                        : Listpooja(
                                           len: home.len,
                                           lanid: widget.lanid,
+                                          onPoojaSelected: _onPoojaSelected,
                                         ),
-                                      )
-                                      : Listpooja(
-                                        len: home.len,
-                                        lanid: widget.lanid,
-                                      ),
+                                  if (_showAmount(home))
+                                    Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        if (!home.isAmountOnly)
+                                          10.verticalSpace,
+                                        Text(
+                                          "Amount",
+                                          style: Fontpalette.blackinter40400,
+                                        ),
+                                        5.verticalSpace,
+                                        Container(
+                                          height: 50.h,
+
+                                          decoration: BoxDecoration(
+                                            borderRadius: BorderRadius.circular(
+                                              21.r,
+                                            ),
+                                            border: Border.all(
+                                              color: Colors.black,
+                                            ),
+                                          ),
+                                          child:
+                                          // TextField(
+                                          //   keyboardType:
+                                          //       TextInputType.numberWithOptions(decimal: true),
+                                          //   controller: amt,
+                                          //   style:
+                                          //       Fontpalette.blackinter45400,
+                                          //   textAlignVertical:
+                                          //       TextAlignVertical.center,
+                                          //   decoration: InputDecoration(
+                                          //     isDense: true,
+                                          //     contentPadding:
+                                          //         EdgeInsets.symmetric(
+                                          //           vertical: 15.h,
+                                          //           horizontal: 40.w,
+                                          //         ),
+                                          //     hintText: " ",
+                                          //     hintStyle:
+                                          //         Fontpalette.blackinter24400,
+                                          //     border: InputBorder.none,
+                                          //   ),
+                                          // ),
+                                          TextField(
+                                            keyboardType:
+                                                TextInputType.numberWithOptions(
+                                                  decimal: true,
+                                                ),
+                                            inputFormatters: [
+                                              FilteringTextInputFormatter
+                                                  .digitsOnly,
+                                            ],
+                                            controller: amt,
+                                            style: Fontpalette.blackinter45400,
+                                            textAlignVertical:
+                                                TextAlignVertical.center,
+                                            decoration: InputDecoration(
+                                              isDense: true,
+                                              contentPadding:
+                                                  EdgeInsets.symmetric(
+                                                    vertical: 15.h,
+                                                    horizontal: 40.w,
+                                                  ),
+
+                                              hintText: " ",
+                                              hintStyle:
+                                                  Fontpalette.blackinter24400,
+                                              border: InputBorder.none,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   10.verticalSpace,
                                   Container(
                                     height: 2.h,
                                     color: HexColor("#D97000"),
                                   ),
                                   15.verticalSpace,
-                                  if (!widget.isDonate)
+                                  if (!home.isAmountOnly)
                                     Row(
                                       mainAxisAlignment: MainAxisAlignment.end,
                                       children: [
@@ -672,20 +675,20 @@ class _BookpoojascreenState extends State<Bookpoojascreen> {
                                               return;
                                             }
                                             if (home.selectedPoojaId == null &&
-                                                home.dietyIName != "DONATION") {
+                                                !home.isAmountOnly) {
                                               Helpers.successToast(
                                                 "Please a pooja",
                                               );
                                               return;
                                             }
                                             if (amt.text.isEmpty &&
-                                                home.dietyIName == "DONATION") {
+                                                _showAmount(home)) {
                                               Helpers.successToast(
                                                 "Please enter the amount",
                                               );
                                               return;
                                             }
-                                            if (home.dietyIName == "DONATION") {
+                                            if (_showAmount(home)) {
                                               final enteredAmount =
                                                   double.tryParse(amt.text);
                                               if (enteredAmount == null ||
@@ -702,13 +705,16 @@ class _BookpoojascreenState extends State<Bookpoojascreen> {
                                               star: home.selectedStarrname,
                                               date: home.dateapi,
                                               dietyid: home.dietyId,
-                                              diety: _dietyDisplayName(home),
+                                              diety: home.dietyIName,
 
-                                              poojaname: home.selectedPoojaName,
+                                              poojaname:
+                                                  home.isAmountOnly
+                                                      ? home.dietyIName
+                                                      : home.selectedPoojaName,
                                               poojaid: home.selectedPoojaId,
 
                                               rate:
-                                                  home.dietyIName == "DONATION"
+                                                  _showAmount(home)
                                                       ? amt.text
                                                       : home.selectedpoojarate,
                                               starid: home.selectedStarId,
@@ -757,7 +763,7 @@ class _BookpoojascreenState extends State<Bookpoojascreen> {
                               builder:
                                   (context, value, child) => InkWell(
                                     onTap: () async {
-                                      if (widget.isDonate) {
+                                      if (home.isAmountOnly) {
                                         home.clearGrossAmount();
                                       }
                                       if (home.pooja.isEmpty) {
@@ -775,20 +781,20 @@ class _BookpoojascreenState extends State<Bookpoojascreen> {
                                           return;
                                         }
                                         if (home.selectedPoojaId == null &&
-                                            home.dietyIName != "DONATION") {
+                                            !home.isAmountOnly) {
                                           Helpers.successToast(
                                             "Please a pooja",
                                           );
                                           return;
                                         }
                                         if (amt.text.isEmpty &&
-                                            home.dietyIName == "DONATION") {
+                                            _showAmount(home)) {
                                           Helpers.successToast(
                                             "Please enter the amount",
                                           );
                                           return;
                                         }
-                                        if (home.dietyIName == "DONATION") {
+                                        if (_showAmount(home)) {
                                           final enteredAmount = double.tryParse(
                                             amt.text,
                                           );
@@ -803,17 +809,20 @@ class _BookpoojascreenState extends State<Bookpoojascreen> {
                                         isEnabled.value = true;
                                         await home.addToPoojaDetails(
                                           name: name.text,
-                                          diety: _dietyDisplayName(home),
+                                          diety: home.dietyIName,
                                           star: home.selectedStarrname,
 
-                                          poojaname: home.selectedPoojaName,
+                                          poojaname:
+                                              home.isAmountOnly
+                                                  ? home.dietyIName
+                                                  : home.selectedPoojaName,
                                           date: home.dateapi,
                                           dietyid: home.dietyId,
 
                                           poojaid: home.selectedPoojaId,
 
                                           rate:
-                                              home.dietyIName == "DONATION"
+                                              _showAmount(home)
                                                   ? amt.text
                                                   : home.selectedpoojarate,
                                           starid: home.selectedStarId,
@@ -841,20 +850,22 @@ class _BookpoojascreenState extends State<Bookpoojascreen> {
                                         if (name.text.isNotEmpty &&
                                             home.selectedStarId != null) {
                                           if (home.selectedPoojaId == null &&
-                                                  home.dietyIName ==
-                                                      "DONATION" ||
+                                                  home.isAmountOnly ||
                                               home.selectedPoojaId != null) {
                                             await home.addToPoojaDetails(
                                               name: name.text,
-                                              diety: _dietyDisplayName(home),
+                                              diety: home.dietyIName,
                                               star: home.selectedStarrname,
 
-                                              poojaname: home.selectedPoojaName,
+                                              poojaname:
+                                                  home.isAmountOnly
+                                                      ? home.dietyIName
+                                                      : home.selectedPoojaName,
                                               poojaid: home.selectedPoojaId,
                                               date: home.dateapi,
                                               dietyid: home.dietyId,
                                               rate:
-                                                  home.dietyIName == "DONATION"
+                                                  _showAmount(home)
                                                       ? amt.text
                                                       : home.selectedpoojarate,
                                               starid: home.selectedStarId,
@@ -922,9 +933,11 @@ class _BookpoojascreenState extends State<Bookpoojascreen> {
 }
 
 class Listpooja extends StatelessWidget {
-  const Listpooja({super.key, this.len = 0, this.lanid});
+  const Listpooja({super.key, this.len = 0, this.lanid, this.onPoojaSelected});
   final int? len;
   final int? lanid;
+  // Called with the tapped pooja's rate.
+  final ValueChanged<String?>? onPoojaSelected;
   @override
   Widget build(BuildContext context) {
     final ScrollController scrollController =
@@ -960,6 +973,7 @@ class Listpooja extends StatelessWidget {
                               poojaid: item.poojaId,
                               rate: item.rate,
                             );
+                            onPoojaSelected?.call(item.rate);
                           },
                           child: Container(
                             decoration: BoxDecoration(

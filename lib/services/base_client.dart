@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:kalady_kiosk/services/app_config.dart';
 import 'package:kalady_kiosk/services/helpers.dart';
@@ -92,6 +93,9 @@ class BaseClient {
 
   static dynamic _processResponse(http.Response response) {
     print(response.statusCode);
+    if (kDebugMode && response.statusCode >= 400) {
+      debugPrint('Error body (${response.request?.url}): ${response.body}');
+    }
     switch (response.statusCode) {
       case 200:
         // var responseJson = utf8.decode(response.bodyBytes);

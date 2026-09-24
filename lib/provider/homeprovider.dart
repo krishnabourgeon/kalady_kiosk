@@ -49,6 +49,9 @@ class HomeProvider extends ProviderHelperClass with ChangeNotifier {
   String? dateapi;
   String? selectedpoojarate;
   List<PoojaDetails> pooja = [];
+
+  // Deity has no poojas — the booking screen asks for an amount instead.
+  bool get isAmountOnly => poojaload == LoaderState.loaded && len == 0;
   PreviewBillResponse? previewBillResponse;
   double? grossamount;
   SaveBillResponse? saveBillResponse;
@@ -323,9 +326,7 @@ class HomeProvider extends ProviderHelperClass with ChangeNotifier {
           //   updatePoojasList(poojaResponse);
           // }
           len = poojaResponse?.data?.length ?? 0;
-          if (dietyIName != "DONATION") {
-            updateSelextedPoojaId(poojaid: null, rate: null, poojaname: null);
-          }
+          updateSelextedPoojaId(poojaid: null, rate: null, poojaname: null);
           updateBtnLoader(false);
           updatePoojaloader(LoaderState.loaded);
           updateLoadState(LoaderState.loaded);
@@ -536,6 +537,7 @@ class HomeProvider extends ProviderHelperClass with ChangeNotifier {
         debugPrint('exception in save bill: $e');
         if (enableLoaderState) updateBtnLoader(false);
         if (!enableLoaderState) updateLoadState(LoaderState.loaded);
+        if (onFailure != null) onFailure();
         Helpers.successToast('Internal Server Error...');
       }
     }

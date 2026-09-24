@@ -2,23 +2,24 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-// import 'package:flutter_thermal_printer/flutter_thermal_printer.dart';
-// import 'package:flutter_thermal_printer/utils/printer.dart';
-import 'package:http/http.dart' as http;
+import 'package:flutter_thermal_printer/flutter_thermal_printer.dart';
+import 'package:flutter_thermal_printer/flutter_thermal_printer_platform_interface.dart';
+import 'package:flutter_thermal_printer/utils/printer.dart';
+// import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart' show DateFormat;
 import 'package:kalady_kiosk/color_pallatte.dart';
 import 'package:kalady_kiosk/extension.dart';
 import 'package:kalady_kiosk/fontpallate.dart';
 import 'package:kalady_kiosk/models/save_bill_body.dart';
-import 'package:kalady_kiosk/print_service.dart';
+// import 'package:kalady_kiosk/print_service.dart';
 import 'package:kalady_kiosk/provider/homeprovider.dart';
 import 'package:kalady_kiosk/services/helpers.dart';
 import 'package:kalady_kiosk/services/provider_helper_class.dart';
-import 'package:kalady_kiosk/view/encrypt.dart';
+// import 'package:kalady_kiosk/view/encrypt.dart';
 import 'package:kalady_kiosk/view/homepage.dart';
 import 'package:provider/provider.dart';
 
-// import 'package:razorpay_flutter/razorpay_flutter.dart';
+import 'package:razorpay_flutter/razorpay_flutter.dart';
 
 class PreviewScreen extends StatefulWidget {
   const PreviewScreen({super.key, this.lanid});
@@ -29,78 +30,97 @@ class PreviewScreen extends StatefulWidget {
 
 class _PreviewScreenState extends State<PreviewScreen> {
   final ValueNotifier<bool> isEnabled = ValueNotifier<bool>(false);
-  // final _flutterThermalPrinterPlugin = FlutterThermalPrinter.instance;
+  final Razorpay _razorpay = Razorpay();
 
-  // List<Printer> printers = [];
-  // Printer? connectedPrinter;
-  // StreamSubscription<List<Printer>>? _devicesStreamSubscription;
+  // Kalady Sankara Madom (as.kaladyshankaramadomts.org) Razorpay live key.
+  static const String razorpayKey = 'rzp_live_drsvRJJ88Gwafu';
+  // TODO: confirm the payment-mode id the backend expects for Razorpay payments.
+  static const int razorpayPaymentMode = 6;
+  final _flutterThermalPrinterPlugin = FlutterThermalPrinter.instance;
+
+  // Characters per line on 58mm paper (use 48 for 80mm).
+  static const int _lineWidth = 32;
+
+  List<Printer> printers = [];
+  Printer? connectedPrinter;
+  StreamSubscription<List<Printer>>? _devicesStreamSubscription;
 
   @override
   void initState() {
     super.initState();
+    _razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS, handlePaymentSuccessResponse);
+    _razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, handlePaymentErrorResponse);
+    _razorpay.on(Razorpay.EVENT_EXTERNAL_WALLET, handleExternalWalletResponse);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      // _startScanAndAutoConnect();
+      _startScanAndAutoConnect();
     });
   }
 
-  Future<String?> selectPaymentMode(BuildContext context) async {
-    return showDialog<String>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) {
-        return AlertDialog(
-          title: Text("Select Payment Mode", style: TextStyle(fontSize: 60.sp)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              OutlinedButton(
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: const Color(0xFFE65C00),
-                  side: const BorderSide(color: Color(0xFFE65C00), width: 1.5),
-                  minimumSize: const Size(double.infinity, 55),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                onPressed: () => Navigator.pop(context, "CARD"),
-                child: Text("Card", style: TextStyle(fontSize: 56.sp)),
-              ),
-              20.verticalSpace,
-
-              OutlinedButton(
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: const Color(0xFFE65C00),
-                  side: const BorderSide(color: Color(0xFFE65C00), width: 1.5),
-                  minimumSize: const Size(double.infinity, 55),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                onPressed: () => Navigator.pop(context, "UPI"),
-                child: Text("UPI", style: TextStyle(fontSize: 56.sp)),
-              ),
-              30.verticalSpace,
-              TextButton(
-                style: TextButton.styleFrom(
-                  foregroundColor: Colors.grey,
-                  minimumSize: const Size(double.infinity, 55),
-                  side: const BorderSide(color: Colors.grey, width: 1.5),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                onPressed: () {
-                  isEnabled.value = false;
-                  Navigator.pop(context, null);
-                },
-                child: Text("Cancel", style: TextStyle(fontSize: 58.sp)),
-              ),
-            ],
-          ),
-        );
-      },
-    );
+  @override
+  void dispose() {
+    _razorpay.clear();
+    _stopScan();
+    super.dispose();
   }
+
+  // Future<String?> selectPaymentMode(BuildContext context) async {
+  //   return showDialog<String>(
+  //     context: context,
+  //     barrierDismissible: false,
+  //     builder: (context) {
+  //       return AlertDialog(
+  //         title: Text("Select Payment Mode", style: TextStyle(fontSize: 60.sp)),
+  //         content: Column(
+  //           mainAxisSize: MainAxisSize.min,
+  //           children: [
+  //             OutlinedButton(
+  //               style: OutlinedButton.styleFrom(
+  //                 foregroundColor: const Color(0xFFE65C00),
+  //                 side: const BorderSide(color: Color(0xFFE65C00), width: 1.5),
+  //                 minimumSize: const Size(double.infinity, 55),
+  //                 shape: RoundedRectangleBorder(
+  //                   borderRadius: BorderRadius.circular(8),
+  //                 ),
+  //               ),
+  //               onPressed: () => Navigator.pop(context, "CARD"),
+  //               child: Text("Card", style: TextStyle(fontSize: 56.sp)),
+  //             ),
+  //             20.verticalSpace,
+
+  //             OutlinedButton(
+  //               style: OutlinedButton.styleFrom(
+  //                 foregroundColor: const Color(0xFFE65C00),
+  //                 side: const BorderSide(color: Color(0xFFE65C00), width: 1.5),
+  //                 minimumSize: const Size(double.infinity, 55),
+  //                 shape: RoundedRectangleBorder(
+  //                   borderRadius: BorderRadius.circular(8),
+  //                 ),
+  //               ),
+  //               onPressed: () => Navigator.pop(context, "UPI"),
+  //               child: Text("UPI", style: TextStyle(fontSize: 56.sp)),
+  //             ),
+  //             30.verticalSpace,
+  //             TextButton(
+  //               style: TextButton.styleFrom(
+  //                 foregroundColor: Colors.grey,
+  //                 minimumSize: const Size(double.infinity, 55),
+  //                 side: const BorderSide(color: Colors.grey, width: 1.5),
+  //                 shape: RoundedRectangleBorder(
+  //                   borderRadius: BorderRadius.circular(8),
+  //                 ),
+  //               ),
+  //               onPressed: () {
+  //                 isEnabled.value = false;
+  //                 Navigator.pop(context, null);
+  //               },
+  //               child: Text("Cancel", style: TextStyle(fontSize: 58.sp)),
+  //             ),
+  //           ],
+  //         ),
+  //       );
+  //     },
+  //   );
+  // }
 
   // Future<String> checkStatus(String urn, String tid) async {
   //   final body = {"urn": urn, "tid": tid};
@@ -120,41 +140,41 @@ class _PreviewScreenState extends State<PreviewScreen> {
   //   return data['status'];
   // }
 
-  Future<String> checkStatus(String urn, String tid) async {
-    final body = {"urn": urn, "tid": tid};
-    print("Original Request: $body");
-    final encryptedData = WorldlineEncryption.encryptRequest(body);
+  // Future<String> checkStatus(String urn, String tid) async {
+  //   final body = {"urn": urn, "tid": tid};
+  //   print("Original Request: $body");
+  //   final encryptedData = WorldlineEncryption.encryptRequest(body);
 
-    final response = await http.post(
-      Uri.parse('https://lb.mrlpay.com/pcpos4/StatusCheck.php?source=941'),
-      headers: {'Content-Type': 'application/json'},
-      body: encryptedData,
-    );
-    final jsonResponse = jsonDecode(response.body);
-    final encrypted = jsonResponse['data'];
-    final decrypt = WorldlineEncryption.decryptResponse(encrypted);
+  //   final response = await http.post(
+  //     Uri.parse('https://lb.mrlpay.com/pcpos4/StatusCheck.php?source=941'),
+  //     headers: {'Content-Type': 'application/json'},
+  //     body: encryptedData,
+  //   );
+  //   final jsonResponse = jsonDecode(response.body);
+  //   final encrypted = jsonResponse['data'];
+  //   final decrypt = WorldlineEncryption.decryptResponse(encrypted);
 
-    final data = jsonDecode(decrypt);
-    return data['status'];
-  }
+  //   final data = jsonDecode(decrypt);
+  //   return data['status'];
+  // }
 
-  Future<String> waitForPaymentStatus(String urn, String tid) async {
-    while (true) {
-      final status = await checkStatus(urn, tid);
+  // Future<String> waitForPaymentStatus(String urn, String tid) async {
+  //   while (true) {
+  //     final status = await checkStatus(urn, tid);
 
-      print("Status: $status");
+  //     print("Status: $status");
 
-      if (status == "success") {
-        return "success";
-      }
+  //     if (status == "success") {
+  //       return "success";
+  //     }
 
-      if (status == "Failed") {
-        return "failed";
-      }
+  //     if (status == "Failed") {
+  //       return "failed";
+  //     }
 
-      await Future.delayed(const Duration(seconds: 5));
-    }
-  }
+  //     await Future.delayed(const Duration(seconds: 5));
+  //   }
+  // }
 
   // saleTransaction(String? amt, String? mode) async {
   //   final request = {
@@ -199,42 +219,42 @@ class _PreviewScreenState extends State<PreviewScreen> {
   //   return await waitForPaymentStatus(urn, tid);
   // }
 
-  saleTransaction(String? amt, String? mode) async {
-    final request = {
-      "tid": "3419965A",
-      "amount": amt,
-      "organization_code": "Retail",
-      "invoiceNumber": "",
-      "rrn": "",
-      "type": mode == "CARD" ? "SALE" : "SALE-UPI",
-      "cb_amt": "",
-      "app_code": "",
-      "tokenisedValue": "",
-      "actionId": mode == "CARD" ? "1" : "133",
-      "request_urn": "",
-    };
-    print("Original Request: $request");
+  // saleTransaction(String? amt, String? mode) async {
+  //   final request = {
+  //     "tid": "3419965A",
+  //     "amount": amt,
+  //     "organization_code": "Retail",
+  //     "invoiceNumber": "",
+  //     "rrn": "",
+  //     "type": mode == "CARD" ? "SALE" : "SALE-UPI",
+  //     "cb_amt": "",
+  //     "app_code": "",
+  //     "tokenisedValue": "",
+  //     "actionId": mode == "CARD" ? "1" : "133",
+  //     "request_urn": "",
+  //   };
+  //   print("Original Request: $request");
 
-    final encryptedData = WorldlineEncryption.encryptRequest(request);
+  //   final encryptedData = WorldlineEncryption.encryptRequest(request);
 
-    final response = await http.post(
-      Uri.parse(
-        'https://lb.mrlpay.com/pcpos4/TransactionRequest.php?source=941',
-      ),
-      headers: {'Content-Type': 'application/json'},
-      body: encryptedData,
-    );
+  //   final response = await http.post(
+  //     Uri.parse(
+  //       'https://lb.mrlpay.com/pcpos4/TransactionRequest.php?source=941',
+  //     ),
+  //     headers: {'Content-Type': 'application/json'},
+  //     body: encryptedData,
+  //   );
 
-    final jsonResponse = jsonDecode(response.body);
+  //   final jsonResponse = jsonDecode(response.body);
 
-    final encrypted = jsonResponse['data'];
-    final decrypt = WorldlineEncryption.decryptResponse(encrypted);
-    print("decrypt json: $decrypt");
-    final data = jsonDecode(decrypt);
-    final String urn = data['urn'];
-    final String tid = data['tid'];
-    return await waitForPaymentStatus(urn, tid);
-  }
+  //   final encrypted = jsonResponse['data'];
+  //   final decrypt = WorldlineEncryption.decryptResponse(encrypted);
+  //   print("decrypt json: $decrypt");
+  //   final data = jsonDecode(decrypt);
+  //   final String urn = data['urn'];
+  //   final String tid = data['tid'];
+  //   return await waitForPaymentStatus(urn, tid);
+  // }
 
   void showPaymentStatusDialog(String message, {bool isSuccess = false}) {
     showDialog(
@@ -271,36 +291,58 @@ class _PreviewScreenState extends State<PreviewScreen> {
     );
   }
 
-  // Future<void> _startScanAndAutoConnect() async {
-  //   _devicesStreamSubscription?.cancel();
-  //   await _flutterThermalPrinterPlugin.getPrinters(
-  //     connectionTypes: [ConnectionType.USB],
-  //   );
-  //   _devicesStreamSubscription = _flutterThermalPrinterPlugin.devicesStream
-  //       .listen((event) async {
-  //         log('Discovered printers: ${event.map((e) => e.name).toList()}');
-  //         final filtered =
-  //             event.where((p) => (p.name?.isNotEmpty ?? false)).toList();
-  //         setState(() {
-  //           printers = filtered;
-  //         });
-  //         if (filtered.isNotEmpty) {
-  //           final first = filtered.first;
-  //           if (!(first.isConnected ?? false)) {
-  //             await _flutterThermalPrinterPlugin.connect(first);
-  //           }
-  //           Helpers.successToast("Printer connected.");
-  //           setState(() {
-  //             connectedPrinter = first;
-  //           });
-  //         }
-  //       });
-  // }
+  // Kiosk's Masung printer (same IDs UsbDriver.java looks for), in decimal
+  // because the plugin reports IDs that way: VID 0x519, PID 0x2013 / 0x2015.
+  static const String _printerVendorId = '1305';
+  static const List<String> _printerProductIds = ['8211', '8213'];
 
-  // void _stopScan() {
-  //   _flutterThermalPrinterPlugin.stopScan();
-  //   _devicesStreamSubscription?.cancel();
-  // }
+  // Prefer the known printer; other USB devices (touchscreen, hubs, ...)
+  // also show up in the list and silently swallow print data.
+  Printer? _pickPrinter(List<Printer> devices) {
+    for (final p in devices) {
+      if (p.vendorId == _printerVendorId &&
+          _printerProductIds.contains(p.productId)) {
+        return p;
+      }
+    }
+    for (final p in devices) {
+      if ((p.name ?? '').toLowerCase().contains('print')) return p;
+    }
+    return null;
+  }
+
+  // Finds the USB receipt printer and asks for USB permission.
+  Future<void> _startScanAndAutoConnect() async {
+    _devicesStreamSubscription?.cancel();
+    await _flutterThermalPrinterPlugin.getPrinters(
+      connectionTypes: [ConnectionType.USB],
+    );
+    _devicesStreamSubscription = _flutterThermalPrinterPlugin.devicesStream
+        .listen((event) async {
+          debugPrint(
+            'USB devices: ${event.map((e) => '${e.name} (${e.vendorId}:${e.productId})').toList()}',
+          );
+          if (!mounted) return;
+          setState(() {
+            printers = event;
+          });
+          final printer = _pickPrinter(event);
+          if (printer != null && connectedPrinter == null) {
+            // Only requests USB permission; the plugin always returns false.
+            await _flutterThermalPrinterPlugin.connect(printer);
+            Helpers.successToast("Printer found: ${printer.name}");
+            if (!mounted) return;
+            setState(() {
+              connectedPrinter = printer;
+            });
+          }
+        });
+  }
+
+  void _stopScan() {
+    _flutterThermalPrinterPlugin.stopScan();
+    _devicesStreamSubscription?.cancel();
+  }
 
   // @override
   // void dispose() {
@@ -442,9 +484,20 @@ class _PreviewScreenState extends State<PreviewScreen> {
     String? date,
     String? mode,
     String? total,
+    String? website,
     List<PoojaDetails>? pooja,
   }) async {
-    // if (connectedPrinter == null) return;
+    if (connectedPrinter == null) return;
+    // Without USB permission the plugin drops the data without any error.
+    final hasPermission = await FlutterThermalPrinterPlatform.instance
+        .isConnected(connectedPrinter!);
+    if (!hasPermission) {
+      await _flutterThermalPrinterPlugin.connect(connectedPrinter!);
+      Helpers.successToast(
+        "Printer USB permission not granted. Bill saved but not printed.",
+      );
+      return;
+    }
     try {
       // await _flutterThermalPrinterPlugin.printWidget(
       //   context,
@@ -499,13 +552,34 @@ class _PreviewScreenState extends State<PreviewScreen> {
         name: name,
         pooja: pooja,
         total: total,
+        website: website,
       );
 
-      // await FlutterThermalPrinter.instance.printData(connectedPrinter!, bytes);
+      // Never let a stuck printer keep the kiosk on this screen.
+      await FlutterThermalPrinter.instance
+          .printData(connectedPrinter!, bytes)
+          .timeout(
+            const Duration(seconds: 15),
+            onTimeout: () => Helpers.successToast("Printer not responding"),
+          );
     } catch (e, st) {
       Helpers.successToast("Error while printing: $e");
       debugPrintStack(stackTrace: st);
     }
+  }
+
+  /// Right-pads [left] and right-aligns [right] within [width] characters,
+  /// truncating [left] if the combined text would overflow the line.
+  String _twoColumnText(String left, String right, [int width = _lineWidth]) {
+    if (left.length + right.length >= width) {
+      final maxLeft = width - right.length - 1;
+      if (maxLeft > 0 && left.length > maxLeft) {
+        left = left.substring(0, maxLeft);
+      }
+    }
+    final spaceCount = width - left.length - right.length;
+    final spaces = spaceCount > 0 ? ' ' * spaceCount : ' ';
+    return '$left$spaces$right';
   }
 
   List<int> generateEscPosCommands({
@@ -516,6 +590,7 @@ class _PreviewScreenState extends State<PreviewScreen> {
     String? date,
     String? mode,
     String? total,
+    String? website,
     List<PoojaDetails>? pooja,
   }) {
     List<int> bytes = [];
@@ -523,44 +598,78 @@ class _PreviewScreenState extends State<PreviewScreen> {
     // Initialize
     bytes += [27, 64]; // ESC @
 
-    // Center align
-    bytes += [27, 97, 1]; // ESC a 1
-    bytes += [29, 33, 0]; // GS ! 0
-    //bold
-    bytes += [27, 69, 1]; // ESC E 1
+    // ---------------- Header: temple name + address ----------------
+    bytes += [27, 97, 1]; // ESC a 1 -> center align
+    bytes += [27, 69, 1]; // ESC E 1 -> bold on
+    bytes += utf8.encode("${(name ?? 'NA').toUpperCase()}\n");
+    bytes += [27, 69, 0]; // bold off
 
-    bytes += utf8.encode("$name\n");
+    if ((add1 ?? '').isNotEmpty) {
+      bytes += utf8.encode("$add1\n");
+    }
+    if ((add2 ?? '').isNotEmpty) {
+      bytes += utf8.encode("$add2\n");
+    }
+    bytes += utf8.encode("\n");
 
-    bytes += utf8.encode("$add1\n");
-    bytes += utf8.encode("$add2\n\n");
-    bytes += [27, 69, 0]; //bold off
-    // Left align
-    bytes += [27, 97, 0]; // ESC a 0
+    // ---------------- Title ----------------
+    bytes += [27, 69, 1]; // bold on
+    bytes += utf8.encode("Seva Receipt\n");
+    bytes += [27, 69, 0]; // bold off
+    bytes += utf8.encode("\n");
 
-    bytes += utf8.encode("Bill No: $billno\n");
-    bytes += utf8.encode("Date: $date\n\n");
+    // ---------------- Receipt meta ----------------
+    bytes += [27, 97, 0]; // ESC a 0 -> left align
+    bytes += utf8.encode("Receipt No: ${billno ?? 'NA'}\n");
+    bytes += utf8.encode("Date: ${date ?? 'NA'}\n");
+    bytes += utf8.encode("${'-' * _lineWidth}\n");
 
-    for (int i = 0; i < pooja!.length; i++) {
-      final item = pooja[i];
-      final name = item.name;
-      final price = item.rate;
-      final qty = item.qty;
-      final star = item.star;
-      final poojaname = item.pooja;
-      final diety = item.diety;
+    // ---------------- Items ----------------
+    if (pooja != null && pooja.isNotEmpty) {
+      for (int i = 0; i < pooja.length; i++) {
+        final item = pooja[i];
+        // "Kiosk User" is a placeholder name, not a real devotee.
+        final personName = item.name == "Kiosk User" ? '' : (item.name ?? '');
+        final star = item.star ?? '';
 
-      bytes += utf8.encode("${i + 1}. $name - $star\n");
-      bytes += utf8.encode("   $diety\n");
-      bytes += utf8.encode("   $poojaname - Rs $price x$qty\n");
+        bytes += [27, 69, 1]; // bold on
+        bytes += utf8.encode(
+          "${i + 1}. $personName${star.isNotEmpty ? ' - $star' : ''}\n",
+        );
+        bytes += [27, 69, 0]; // bold off
+
+        if ((item.diety ?? '').isNotEmpty) {
+          bytes += utf8.encode("   ${item.diety}\n");
+        }
+
+        final itemLabel = "   ${item.pooja ?? 'NA'} x${item.qty ?? 1}";
+        final itemAmount = "Rs.${item.rate ?? '0'}";
+        bytes += utf8.encode("${_twoColumnText(itemLabel, itemAmount)}\n");
+
+        if (i != pooja.length - 1) {
+          bytes += utf8.encode("\n");
+        }
+      }
     }
 
-    bytes += [27, 97, 2]; // ESC a 2 → Right align
-    bytes += [27, 69, 1]; // ESC E n (bold on)
-    bytes += utf8.encode("\nTotal: Rs $total\n");
-    bytes += utf8.encode("Mode: $mode\n");
-    bytes += [27, 69, 0]; // ESC E n (bold off)
-    bytes += [27, 97, 1]; // ESC a 1 align centre
-    bytes += utf8.encode("\nThank you!\n\n\n");
+    bytes += utf8.encode("${'-' * _lineWidth}\n");
+
+    // ---------------- Totals ----------------
+    bytes += [27, 69, 1]; // bold on
+    bytes += utf8.encode(
+      "${_twoColumnText('Amount Paid:', 'Rs.${total ?? '0'}')}\n",
+    );
+    bytes += [27, 69, 0]; // bold off
+    bytes += utf8.encode("${_twoColumnText('Payment Mode:', mode ?? 'NA')}\n");
+    bytes += utf8.encode("${'-' * _lineWidth}\n");
+
+    // ---------------- Footer ----------------
+    bytes += [27, 97, 1]; // center align
+    bytes += utf8.encode("\nThank you!\n");
+    if ((website ?? '').isNotEmpty) {
+      bytes += utf8.encode("$website\n");
+    }
+    bytes += utf8.encode("\n\n");
 
     // Cut (if supported)
     bytes += [29, 86, 66, 0]; // GS V B n
@@ -568,51 +677,149 @@ class _PreviewScreenState extends State<PreviewScreen> {
     return bytes;
   }
 
-  // paymentrazorpay({String? amt}) {
-  //   Razorpay razorpay = Razorpay();
-  //   var options = {
-  //     'key': 'rzp_live_NGgmtciA7z56d4',
-  //     'amount': "${amt}00" ?? 0,
-  //     'name': 'SREE KADAMPUZHA.',
-  //     'description': 'Pooja Booking',
-  //     'retry': {'enabled': true, 'max_count': 1},
-  //     'send_sms_hash': true,
-  //     'prefill': {'contact': '8888888888', 'email': 'test@razorpay.com'},
-  //     'external': {
-  //       'wallets': ['paytm'],
-  //     },
-  //   };
-  //   razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, handlePaymentErrorResponse);
-  //   razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS, handlePaymentSuccessResponse);
-  //   razorpay.open(options);
-  // }
+  void paymentrazorpay({num? amt}) {
+    if (amt == null || amt <= 0) {
+      isEnabled.value = false;
+      Helpers.successToast("Invalid amount");
+      return;
+    }
+    var options = {
+      'key': razorpayKey,
+      // Razorpay expects the amount in paise.
+      'amount': (amt * 100).round(),
+      'name': 'Kalady Sri Adi Shankara Madom',
+      'description': 'Pooja Booking',
+      'retry': {'enabled': true, 'max_count': 1},
+      'send_sms_hash': true,
+      'prefill': {'contact': '8888888888', 'email': 'test@razorpay.com'},
+      'external': {
+        'wallets': ['paytm'],
+      },
+    };
+    try {
+      _razorpay.open(options);
+    } catch (e) {
+      debugPrint('Razorpay open error: $e');
+      isEnabled.value = false;
+      Helpers.successToast("Unable to start payment");
+    }
+  }
 
-  // void handlePaymentErrorResponse(PaymentFailureResponse response) {
-  //   print(response.message);
-  //   isEnabled.value = false;
-  //   Helpers.successToast("Payment failed");
-  // }
+  void handlePaymentErrorResponse(PaymentFailureResponse response) {
+    print(response.message);
+    isEnabled.value = false;
+    showPaymentStatusDialog("Payment failed");
+  }
 
-  // void handlePaymentSuccessResponse(PaymentSuccessResponse response) async {
-  //   final home = context.read<HomeProvider>();
+  void handleExternalWalletResponse(ExternalWalletResponse response) {
+    isEnabled.value = false;
+    Helpers.successToast("External wallet: ${response.walletName}");
+  }
 
-  //   ;
-  //   await home.saveBill(
-  //     transid: response.paymentId,
-  //     onSuccess: () {
-  //       Helpers.successToast(home.saveBillResponse?.message ?? 'Bill Saved');
-  //       Navigator.pushAndRemoveUntil(
-  //         context,
-  //         MaterialPageRoute(builder: (context) => const MyHomePage()),
-  //         (route) => false,
-  //       );
-  //       isEnabled.value = false;
-  //     },
-  //     onFailure: () {
-  //       isEnabled.value = false;
-  //     },
-  //   );
-  // }
+  void handlePaymentSuccessResponse(PaymentSuccessResponse response) async {
+    await _saveBillAndPrint(
+      transId: response.paymentId,
+      paymentMode: razorpayPaymentMode,
+    );
+  }
+
+  Future<void> _saveBillAndPrint({String? transId, int? paymentMode}) async {
+    final home = context.read<HomeProvider>();
+    // bool connected = await PrinterService.connect();
+    await home.saveBill(
+      transid: transId,
+      paymentMode: paymentMode,
+      onSuccess: () async {
+        Helpers.successToast(home.saveBillResponse?.message ?? 'Bill Saved');
+        DateTime parsedDate = DateTime.parse(
+          home.saveBillResponse?.summary?.billDate ?? '',
+        );
+
+        // Format it to desired format: dd-MM-yyyy HH:mm:ss
+        String formatted = DateFormat('dd-MM-yyyy HH:mm:ss').format(parsedDate);
+        // if (connected) {
+        //   final templeData = home.saveBillResponse?.temple;
+        //   // Malayalam selected (lanid != 1) and a
+        //   // translated name is available — otherwise
+        //   // fall back to the English name.
+        //   final templeName =
+        //       widget.lanid != 1 && (templeData?.nameMal?.isNotEmpty ?? false)
+        //           ? templeData!.nameMal
+        //           : templeData?.name;
+        //   await PrinterService.printReceipt(
+        //     temple: templeName,
+        //     templeAddress: home.saveBillResponse?.temple?.addressLine1 ?? '',
+        //     templePlace: home.saveBillResponse?.temple?.addressLine2 ?? '',
+        //     today: formatted,
+        //     id: home.saveBillResponse?.summary?.id,
+        //     mode: home.saveBillResponse?.summary?.mode.toString(),
+        //     total: home.saveBillResponse?.summary?.total.toString(),
+        //     website: home.saveBillResponse?.temple?.website ?? '',
+        //     items:
+        //         home.pooja
+        //             .asMap()
+        //             .entries
+        //             .map(
+        //               (entry) => {
+        //                 "personId": entry.key + 1, // index
+        //                 "personName": entry.value.name,
+        //                 "deity": entry.value.diety,
+        //                 "star": entry.value.star,
+        //                 "pooja": entry.value.pooja,
+        //                 "qty": entry.value.qty,
+        //                 "rate": entry.value.rate,
+        //                 "date": entry.value.date,
+        //                 "address": entry.value.address,
+        //               },
+        //             )
+        //             .toList(),
+        //   );
+        // } else {
+        //   Helpers.successToast(
+        //     "Failed to connect to printer. Bill saved but printing failed.",
+        //   );
+        // }
+        if (connectedPrinter != null) {
+          final previewItems = home.previewBillResponse?.data?.poojaDetails;
+          // Printed before leaving this screen, which stops the printer scan.
+          // ESC/POS prints English only, so use the English temple name.
+          await _printReceipts(
+            name: home.saveBillResponse?.temple?.name,
+            add1: home.saveBillResponse?.temple?.addressLine1 ?? '',
+            add2: home.saveBillResponse?.temple?.addressLine2 ?? '',
+            date: formatted,
+            billno: home.saveBillResponse?.summary?.id?.toString() ?? '',
+            mode: home.saveBillResponse?.summary?.mode?.toString() ?? '',
+            total: home.saveBillResponse?.summary?.total?.toString() ?? '',
+            website: home.saveBillResponse?.temple?.website ?? '',
+            pooja:
+                (previewItems != null && previewItems.isNotEmpty)
+                    ? previewItems
+                    : home.pooja,
+          );
+        } else {
+          Helpers.successToast(
+            "No connected printer. Bill saved but printing failed.",
+          );
+        }
+        isEnabled.value = false;
+        if (!mounted) return;
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => MyHomePage()),
+          (route) => false,
+        );
+      },
+      onFailure: () async {
+        isEnabled.value = false;
+        if (!mounted) return;
+        showPaymentStatusDialog(
+          "Payment received but the bill could not be saved.\n"
+          "Please contact the counter.\n\nPayment ID: $transId",
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -982,206 +1189,219 @@ class _PreviewScreenState extends State<PreviewScreen> {
                                 valueListenable: isEnabled,
                                 builder:
                                     (context, value, child) => InkWell(
-                                      onTap: () async {
-                                        isEnabled.value = true;
-                                        String? selectedPaymentMode =
-                                            await selectPaymentMode(context);
-                                        print(
-                                          "Selected Payment Mode: $selectedPaymentMode",
-                                        );
-                                        if (selectedPaymentMode == null) {
-                                          isEnabled.value = false;
-                                          return;
-                                        }
-                                        showWaitingDialog();
-                                        final paymentStatus =
-                                            await saleTransaction(
-                                              home.grossamount?.toStringAsFixed(
-                                                2,
-                                              ),
-                                              selectedPaymentMode,
-                                            );
-                                        Navigator.pop(
-                                          context,
-                                        ); // Dismiss the waiting dialog
-
-                                        bool connected =
-                                            await PrinterService.connect();
-                                        print(
-                                          "Payment Status..button: $paymentStatus",
-                                        );
-                                        // if (paymentStatus == "success") {
-                                        // AFTER
-                                        if (paymentStatus == "timeout") {
-                                          isEnabled.value = false;
+                                      onTap: () {
+                                        if (isEnabled.value) return;
+                                        // Don't take payment without a receipt printer.
+                                        if (connectedPrinter == null) {
                                           Helpers.successToast(
-                                            "Payment timed out. Please try again.",
+                                            "Please check the printer",
                                           );
+                                          _startScanAndAutoConnect();
                                           return;
                                         }
-                                        if (paymentStatus == "success") {
-                                          await home.saveBill(
-                                            transid: "test",
-                                            paymentMode:
-                                                selectedPaymentMode == "CARD"
-                                                    ? 4
-                                                    : 6,
-                                            onSuccess: () async {
-                                              Helpers.successToast(
-                                                home
-                                                        .saveBillResponse
-                                                        ?.message ??
-                                                    'Bill Saved',
-                                              );
-                                              DateTime parsedDate =
-                                                  DateTime.parse(
-                                                    home
-                                                            .saveBillResponse
-                                                            ?.summary
-                                                            ?.billDate ??
-                                                        '',
-                                                  );
-
-                                              // Format it to desired format: dd-MM-yyyy HH:mm:ss
-                                              String formatted = DateFormat(
-                                                'dd-MM-yyyy HH:mm:ss',
-                                              ).format(parsedDate);
-                                              if (connected) {
-                                                final templeData =
-                                                    home
-                                                        .saveBillResponse
-                                                        ?.temple;
-                                                // Malayalam selected (lanid != 1) and a
-                                                // translated name is available — otherwise
-                                                // fall back to the English name.
-                                                final templeName =
-                                                    widget.lanid != 1 &&
-                                                            (templeData
-                                                                    ?.nameMal
-                                                                    ?.isNotEmpty ??
-                                                                false)
-                                                        ? templeData!.nameMal
-                                                        : templeData?.name;
-                                                await PrinterService.printReceipt(
-                                                  temple: templeName,
-                                                  templeAddress:
-                                                      home
-                                                          .saveBillResponse
-                                                          ?.temple
-                                                          ?.addressLine1 ??
-                                                      '',
-                                                  templePlace:
-                                                      home
-                                                          .saveBillResponse
-                                                          ?.temple
-                                                          ?.addressLine2 ??
-                                                      '',
-                                                  today: formatted,
-                                                  id:
-                                                      home
-                                                          .saveBillResponse
-                                                          ?.summary
-                                                          ?.id,
-                                                  mode:
-                                                      home
-                                                          .saveBillResponse
-                                                          ?.summary
-                                                          ?.mode
-                                                          .toString(),
-                                                  total:
-                                                      home
-                                                          .saveBillResponse
-                                                          ?.summary
-                                                          ?.total
-                                                          .toString(),
-                                                  website:
-                                                      home
-                                                          .saveBillResponse
-                                                          ?.temple
-                                                          ?.website ??
-                                                      '',
-                                                  items:
-                                                      home.pooja
-                                                          .asMap()
-                                                          .entries
-                                                          .map(
-                                                            (entry) => {
-                                                              "personId":
-                                                                  entry.key +
-                                                                  1, // index
-                                                              "personName":
-                                                                  entry
-                                                                      .value
-                                                                      .name,
-                                                              "deity":
-                                                                  entry
-                                                                      .value
-                                                                      .diety,
-                                                              "star":
-                                                                  entry
-                                                                      .value
-                                                                      .star,
-                                                              "pooja":
-                                                                  entry
-                                                                      .value
-                                                                      .pooja,
-                                                              "qty":
-                                                                  entry
-                                                                      .value
-                                                                      .qty,
-                                                              "rate":
-                                                                  entry
-                                                                      .value
-                                                                      .rate,
-                                                              "date":
-                                                                  entry
-                                                                      .value
-                                                                      .date,
-                                                              "address":
-                                                                  entry
-                                                                      .value
-                                                                      .address,
-                                                            },
-                                                          )
-                                                          .toList(),
-                                                );
-                                                isEnabled.value = false;
-                                                Navigator.pushAndRemoveUntil(
-                                                  context,
-                                                  MaterialPageRoute(
-                                                    builder:
-                                                        (context) =>
-                                                            MyHomePage(),
-                                                  ),
-                                                  (route) => false,
-                                                );
-                                              } else {
-                                                Helpers.successToast(
-                                                  "Failed to connect to printer. Bill saved but printing failed.",
-                                                );
-                                                isEnabled.value = false;
-                                                Navigator.pushAndRemoveUntil(
-                                                  context,
-                                                  MaterialPageRoute(
-                                                    builder:
-                                                        (context) =>
-                                                            MyHomePage(),
-                                                  ),
-                                                  (route) => false,
-                                                );
-                                              }
-                                            },
-                                            onFailure: () async {
-                                              isEnabled.value = false;
-                                            },
-                                          );
-                                        } else {
-                                          isEnabled.value = false;
-                                          showPaymentStatusDialog(
-                                            "Payment failed",
-                                          );
-                                        }
+                                        isEnabled.value = true;
+                                        paymentrazorpay(amt: home.grossamount);
                                       },
+                                      // onTap: () async {
+                                      //   isEnabled.value = true;
+                                      //   String? selectedPaymentMode =
+                                      //       await selectPaymentMode(context);
+                                      //   print(
+                                      //     "Selected Payment Mode: $selectedPaymentMode",
+                                      //   );
+                                      //   if (selectedPaymentMode == null) {
+                                      //     isEnabled.value = false;
+                                      //     return;
+                                      //   }
+                                      //   showWaitingDialog();
+                                      //   final paymentStatus =
+                                      //       await saleTransaction(
+                                      //         home.grossamount?.toStringAsFixed(
+                                      //           2,
+                                      //         ),
+                                      //         selectedPaymentMode,
+                                      //       );
+                                      //   Navigator.pop(
+                                      //     context,
+                                      //   ); // Dismiss the waiting dialog
+
+                                      //   bool connected =
+                                      //       await PrinterService.connect();
+                                      //   print(
+                                      //     "Payment Status..button: $paymentStatus",
+                                      //   );
+                                      //   // if (paymentStatus == "success") {
+                                      //   // AFTER
+                                      //   if (paymentStatus == "timeout") {
+                                      //     isEnabled.value = false;
+                                      //     Helpers.successToast(
+                                      //       "Payment timed out. Please try again.",
+                                      //     );
+                                      //     return;
+                                      //   }
+                                      //   if (paymentStatus == "success") {
+                                      //     await home.saveBill(
+                                      //       transid: "test",
+                                      //       paymentMode:
+                                      //           selectedPaymentMode == "CARD"
+                                      //               ? 4
+                                      //               : 6,
+                                      //       onSuccess: () async {
+                                      //         Helpers.successToast(
+                                      //           home
+                                      //                   .saveBillResponse
+                                      //                   ?.message ??
+                                      //               'Bill Saved',
+                                      //         );
+                                      //         DateTime parsedDate =
+                                      //             DateTime.parse(
+                                      //               home
+                                      //                       .saveBillResponse
+                                      //                       ?.summary
+                                      //                       ?.billDate ??
+                                      //                   '',
+                                      //             );
+
+                                      //         // Format it to desired format: dd-MM-yyyy HH:mm:ss
+                                      //         String formatted = DateFormat(
+                                      //           'dd-MM-yyyy HH:mm:ss',
+                                      //         ).format(parsedDate);
+                                      //         if (connected) {
+                                      //           final templeData =
+                                      //               home
+                                      //                   .saveBillResponse
+                                      //                   ?.temple;
+                                      //           // Malayalam selected (lanid != 1) and a
+                                      //           // translated name is available — otherwise
+                                      //           // fall back to the English name.
+                                      //           final templeName =
+                                      //               widget.lanid != 1 &&
+                                      //                       (templeData
+                                      //                               ?.nameMal
+                                      //                               ?.isNotEmpty ??
+                                      //                           false)
+                                      //                   ? templeData!.nameMal
+                                      //                   : templeData?.name;
+                                      //           await PrinterService.printReceipt(
+                                      //             temple: templeName,
+                                      //             templeAddress:
+                                      //                 home
+                                      //                     .saveBillResponse
+                                      //                     ?.temple
+                                      //                     ?.addressLine1 ??
+                                      //                 '',
+                                      //             templePlace:
+                                      //                 home
+                                      //                     .saveBillResponse
+                                      //                     ?.temple
+                                      //                     ?.addressLine2 ??
+                                      //                 '',
+                                      //             today: formatted,
+                                      //             id:
+                                      //                 home
+                                      //                     .saveBillResponse
+                                      //                     ?.summary
+                                      //                     ?.id,
+                                      //             mode:
+                                      //                 home
+                                      //                     .saveBillResponse
+                                      //                     ?.summary
+                                      //                     ?.mode
+                                      //                     .toString(),
+                                      //             total:
+                                      //                 home
+                                      //                     .saveBillResponse
+                                      //                     ?.summary
+                                      //                     ?.total
+                                      //                     .toString(),
+                                      //             website:
+                                      //                 home
+                                      //                     .saveBillResponse
+                                      //                     ?.temple
+                                      //                     ?.website ??
+                                      //                 '',
+                                      //             items:
+                                      //                 home.pooja
+                                      //                     .asMap()
+                                      //                     .entries
+                                      //                     .map(
+                                      //                       (entry) => {
+                                      //                         "personId":
+                                      //                             entry.key +
+                                      //                             1, // index
+                                      //                         "personName":
+                                      //                             entry
+                                      //                                 .value
+                                      //                                 .name,
+                                      //                         "deity":
+                                      //                             entry
+                                      //                                 .value
+                                      //                                 .diety,
+                                      //                         "star":
+                                      //                             entry
+                                      //                                 .value
+                                      //                                 .star,
+                                      //                         "pooja":
+                                      //                             entry
+                                      //                                 .value
+                                      //                                 .pooja,
+                                      //                         "qty":
+                                      //                             entry
+                                      //                                 .value
+                                      //                                 .qty,
+                                      //                         "rate":
+                                      //                             entry
+                                      //                                 .value
+                                      //                                 .rate,
+                                      //                         "date":
+                                      //                             entry
+                                      //                                 .value
+                                      //                                 .date,
+                                      //                         "address":
+                                      //                             entry
+                                      //                                 .value
+                                      //                                 .address,
+                                      //                       },
+                                      //                     )
+                                      //                     .toList(),
+                                      //           );
+                                      //           isEnabled.value = false;
+                                      //           Navigator.pushAndRemoveUntil(
+                                      //             context,
+                                      //             MaterialPageRoute(
+                                      //               builder:
+                                      //                   (context) =>
+                                      //                       MyHomePage(),
+                                      //             ),
+                                      //             (route) => false,
+                                      //           );
+                                      //         } else {
+                                      //           Helpers.successToast(
+                                      //             "Failed to connect to printer. Bill saved but printing failed.",
+                                      //           );
+                                      //           isEnabled.value = false;
+                                      //           Navigator.pushAndRemoveUntil(
+                                      //             context,
+                                      //             MaterialPageRoute(
+                                      //               builder:
+                                      //                   (context) =>
+                                      //                       MyHomePage(),
+                                      //             ),
+                                      //             (route) => false,
+                                      //           );
+                                      //         }
+                                      //       },
+                                      //       onFailure: () async {
+                                      //         isEnabled.value = false;
+                                      //       },
+                                      //     );
+                                      //   } else {
+                                      //     isEnabled.value = false;
+                                      //     showPaymentStatusDialog(
+                                      //       "Payment failed",
+                                      //     );
+                                      //   }
+                                      // },
                                       child: Container(
                                         decoration: BoxDecoration(
                                           borderRadius: BorderRadius.circular(
