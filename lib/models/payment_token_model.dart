@@ -1,57 +1,55 @@
-// To parse this JSON data, do
-//
-//     final paymentToken = paymentTokenFromJson(jsonString);
+class PaymentTokenResponse {
+  bool? status;
+  PaymentTokenData? data;
+  String? message;
 
-import 'dart:convert';
+  PaymentTokenResponse({
+    this.status,
+    this.data,
+    this.message,
+  });
 
-PaymentToken paymentTokenFromJson(String str) => PaymentToken.fromJson(json.decode(str));
+  PaymentTokenResponse.fromJson(Map<String, dynamic> json) {
+    status = json['status'];
 
-String paymentTokenToJson(PaymentToken data) => json.encode(data.toJson());
+    if (json['data'] != null) {
+      data = PaymentTokenData.fromJson(json['data']);
+    }
 
-class PaymentToken {
-    bool status;
-    Data data;
-    String message;
+    message = json['message'];
+  }
 
-    PaymentToken({
-        required this.status,
-        required this.data,
-        required this.message,
-    });
-
-    factory PaymentToken.fromJson(Map<String, dynamic> json) => PaymentToken(
-        status: json["status"],
-        data: Data.fromJson(json["data"]),
-        message: json["message"],
-    );
-
-    Map<String, dynamic> toJson() => {
-        "status": status,
-        "data": data.toJson(),
-        "message": message,
+  Map<String, dynamic> toJson() {
+    return {
+      'status': status,
+      'data': data?.toJson(),
+      'message': message,
     };
+  }
 }
 
-class Data {
-    String token;
-    String tokenType;
-    int expiresIn;
+class PaymentTokenData {
+  String? token;
+  String? tokenType;
+  int? expiresIn;
 
-    Data({
-        required this.token,
-        required this.tokenType,
-        required this.expiresIn,
-    });
+  PaymentTokenData({
+    this.token,
+    this.tokenType,
+    this.expiresIn,
+  });
 
-    factory Data.fromJson(Map<String, dynamic> json) => Data(
-        token: json["token"],
-        tokenType: json["token_type"],
-        expiresIn: json["expires_in"],
-    );
+  PaymentTokenData.fromJson(Map<String, dynamic> json) {
+    token = json['token'];
+    tokenType = json['token_type'];
+    expiresIn = json['expires_in'];
+  }
 
-    Map<String, dynamic> toJson() => {
-        "token": token,
-        "token_type": tokenType,
-        "expires_in": expiresIn,
+  Map<String, dynamic> toJson() {
+    return {
+      'token': token,
+      'token_type': tokenType,
+      'expires_in': expiresIn,
     };
+  }
 }

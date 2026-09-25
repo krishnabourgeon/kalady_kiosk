@@ -3,8 +3,11 @@ import 'package:async/async.dart';
 import 'package:kalady_kiosk/models/counters_model.dart';
 import 'package:kalady_kiosk/models/dieties_response_model.dart';
 import 'package:kalady_kiosk/models/error_response_model.dart';
+import 'package:kalady_kiosk/models/generate_qr_response.dart';
 import 'package:kalady_kiosk/models/login_response_model.dart';
 import 'package:kalady_kiosk/models/payment_mode_response.dart';
+import 'package:kalady_kiosk/models/payment_response_status.dart';
+import 'package:kalady_kiosk/models/payment_token_model.dart';
 import 'package:kalady_kiosk/models/pooja_details_model.dart';
 import 'package:kalady_kiosk/models/pooja_response_model.dart';
 import 'package:kalady_kiosk/models/preview_bill_response.dart';
@@ -201,4 +204,120 @@ print(response);
           : Result.error(paymentModeResponse);
     }
   }
+
+
+
+
+  Future<Result> getPaymentToken() async {
+    Result res = await BaseClient.post('payment/token');
+    if(res.isError){
+      ErrorResponseModel errorResponseModel = ErrorResponseModel(
+        errorMessage: 'OOps...!, Something went wrong',
+      );
+      return Result.error(errorResponseModel);
+    }else{
+      var response = res.asValue!.value;
+      PaymentTokenResponse paymentTokenResponse = PaymentTokenResponse.fromJson(response);
+      return (paymentTokenResponse.status ?? false)
+          ? Result.value(paymentTokenResponse)
+          : Result.error(paymentTokenResponse);
+    }
+  }
+
+
+
+  Future<Result> generatePaymentQr({
+  required double amount,
+  required String transactionNote,
+  required String transactionReference,
+  required int expireMinutes,
+}) async {
+  try {
+    final body = {
+      "amount": amount,
+      "transaction_note": transactionNote,
+      "transaction_reference": transactionReference,
+      "expire_minutes": expireMinutes,
+    };
+
+    Result res = await BaseClient.post(
+      'sib/qr/generate',
+      body: body,
+    );
+
+    if (res.isError) {
+      return Result.error(
+        ErrorResponseModel(
+          errorMessage: 'Oops...! QR generation failed',
+        ),
+      );
+    }
+
+    final response = res.asValue!.value;
+
+    debugPrint("QR RESPONSE: $response");
+
+    final qrResponse = GenerateQrResponse.fromJson(response);
+
+    return (qrResponse.status ?? false)
+        ? Result.value(qrResponse)
+        : Result.error(qrResponse);
+  } catch (e) {
+    debugPrint("Generate QR Exception: $e");
+
+    return Result.error(
+      ErrorResponseModel(
+        errorMessage: e.toString(),
+      ),
+    );
+  }
+}
+
+
+Future<Result> checkPaymentStatus({
+  required String pspRefNo,
+  String? transactionReference,
+}) async {
+  try {
+    Map<String, dynamic> body = {
+      // "psp_ref_no": pspRefNo,
+      "transaction_reference":  pspRefNo,
+    };
+
+    debugPrint("PAYMENT STATUS BODY: $body");
+
+    Result res = await BaseClient.post(
+      'sib/qr/check-status',
+      body: body,
+    );
+
+    if (res.isError) {
+      ErrorResponseModel errorResponseModel =
+          ErrorResponseModel(
+        errorMessage: 'Oops...! Payment status check failed',
+      );
+
+      return Result.error(errorResponseModel);
+    } else {
+      var response = res.asValue!.value;
+
+      debugPrint("PAYMENT STATUS RESPONSE: $response");
+
+      PaymentStatusResponse paymentStatusResponse =
+          PaymentStatusResponse.fromJson(response);
+
+      return (paymentStatusResponse.status ?? false)
+          ? Result.value(paymentStatusResponse)
+          : Result.error(paymentStatusResponse);
+    }
+  } catch (e) {
+    debugPrint("Payment Status Exception: $e");
+
+    return Result.error(
+      ErrorResponseModel(
+        errorMessage: e.toString(),
+      ),
+    );
+  }
+}
 }

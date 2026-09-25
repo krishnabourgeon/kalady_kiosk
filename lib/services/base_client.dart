@@ -43,6 +43,8 @@ class BaseClient {
               uri,
               headers: {
                 HttpHeaders.contentTypeHeader: _appJson,
+                // Makes Laravel return JSON errors instead of a 302 redirect.
+                HttpHeaders.acceptHeader: _appJson,
                 HttpHeaders.authorizationHeader: 'Bearer $bearerToken',
               },
             )
@@ -72,6 +74,8 @@ class BaseClient {
               uri,
               headers: {
                 HttpHeaders.contentTypeHeader: _appJson,
+                // Makes Laravel return JSON errors instead of a 302 redirect.
+                HttpHeaders.acceptHeader: _appJson,
                 HttpHeaders.authorizationHeader: 'Bearer $bearerToken',
               },
               body: body != null ? json.encode(body) : null,
@@ -93,7 +97,7 @@ class BaseClient {
 
   static dynamic _processResponse(http.Response response) {
     print(response.statusCode);
-    if (kDebugMode && response.statusCode >= 400) {
+    if (kDebugMode && response.statusCode >= 300) {
       debugPrint('Error body (${response.request?.url}): ${response.body}');
     }
     switch (response.statusCode) {

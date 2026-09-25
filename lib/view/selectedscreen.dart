@@ -1142,15 +1142,136 @@ class _LanguageSelectedScreenState extends State<LanguageSelectedScreen> {
   // }
 
 
-    Widget _adwaithaSangamamButton() {
-    final Color yellow = HexColor("#E6F21C");
-    final Color green = HexColor("#1B5E20");
+  //   Widget _adwaithaSangamamButton() {
+  //   final Color yellow = HexColor("#E6F21C");
+  //   final Color green = HexColor("#1B5E20");
 
-    return InkWell(
+  //   return InkWell(
+  //     onTap: _openAdwaithaSangamam,
+  //     //borderRadius: BorderRadius.circular(27.r),
+  //     child: Container(
+  //       width: 260.w,
+  //       height: 100.h,
+  //       padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
+  //       decoration: BoxDecoration(
+  //         gradient: LinearGradient(
+  //           begin: Alignment.centerLeft,
+  //           end: Alignment.centerRight,
+  //           colors: [yellow, HexColor("#B5DB0A")],
+  //         ),
+  //         borderRadius: BorderRadius.circular(27.r),
+  //         border: Border.all(color: green, width: 4.h),
+  //         boxShadow: const [
+  //           BoxShadow(
+  //             color: Colors.black38,
+  //             blurRadius: 8,
+  //             offset: Offset(0, 3),
+  //           ),
+  //         ],
+  //       ),
+  //       child: Row(
+  //         mainAxisAlignment: MainAxisAlignment.center,
+  //         children: [
+  //           SizedBox(
+  //             height: 70.h,
+  //             width: 90.h,
+  //             child: Image.asset(
+  //               "assets/images/logo.jpeg",
+  //               fit: BoxFit.contain,
+  //               color: yellow,
+  //               colorBlendMode: BlendMode.multiply,
+  //             ),
+  //           ),
+  //           SizedBox(width: 30.w),
+  //           Text(
+  //             _selectedLang == 1 ? "ADWAITHA SANGAMAM" : "అద్వైత సంగమం",
+  //             textAlign: TextAlign.center,
+  //             maxLines: 1,
+  //             overflow: TextOverflow.ellipsis,
+  //             style: Fontpalette.white45500.copyWith(color: green),
+  //           ),
+  //           SizedBox(width: 14.w),
+  //           Icon(Icons.open_in_new, color: green, size: 28.h),
+  //         ],
+  //       ),
+  //     ),
+  //   );
+  // }
+  // // Deity buttons from the getDeities API, two per row,
+  // // followed by the separate Adwaitha Sangamam container.
+  // Widget _buildMenu(HomeProvider home) {
+  //   final deities = home.deitiesResponse?.data;
+
+  //   final List<Widget> content = [];
+
+  //   if (deities == null) {
+  //     content.add(
+  //       Center(
+  //         child: CircularProgressIndicator(color: HexColor("#EC5002")),
+  //       ).verticalPadding(30.h),
+  //     );
+  //   } else {
+  //     final buttons = <Widget>[
+  //       for (final deity in deities)
+  //         _menuButton(
+  //           label:
+  //               _selectedLang == 1
+  //                   ? (deity.name ?? '').toUpperCase()
+  //                   : (deity.nameMal ?? deity.name ?? ''),
+  //           onTap: () {
+  //             home.clearStoredData();
+  //             home.clearGrossAmount();
+  //             navigatescrren(
+  //               context: context,
+  //               page: Bookpoojascreen(
+  //                 lanid: _selectedLang,
+  //                 deityId: deity.id,
+  //                 deityName: _selectedLang == 1 ? deity.name : deity.nameMal,
+  //                 isEHundi: HomeProvider.isEHundiDeity(deity.name),
+  //                 rateEditable: [
+  //                   '1',
+  //                   'true',
+  //                 ].contains(deity.rateeditable?.toString()),
+  //               ),
+  //             );
+  //           },
+  //         ),
+  //     ];
+
+  //     for (var i = 0; i < buttons.length; i += 2) {
+  //       if (content.isNotEmpty) content.add(_menuDivider());
+  //       content.add(
+  //         Row(
+  //           children: [
+  //             buttons[i],
+  //             if (i + 1 < buttons.length) ...[
+  //               SizedBox(width: 10.h),
+  //               buttons[i + 1],
+  //             ],
+  //           ],
+  //         ),
+  //       );
+  //     }
+  //   }
+
+  //   content.add(24.verticalSpace);
+  //   content.add(_adwaithaSangamamButton());
+
+  //   return Column(children: content).horizontalPadding(200.w);
+  // }
+
+
+
+
+  Widget _adwaithaSangamamButton() {
+  final Color yellow = HexColor("#E6F21C");
+  final Color green = HexColor("#1B5E20");
+
+  return Center(
+    child: InkWell(
       onTap: _openAdwaithaSangamam,
-      //borderRadius: BorderRadius.circular(27.r),
       child: Container(
-        width: 260,
+        // Sized to its content: a fixed 260.w was too narrow and overflowed.
         height: 100.h,
         padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
         decoration: BoxDecoration(
@@ -1170,6 +1291,7 @@ class _LanguageSelectedScreenState extends State<LanguageSelectedScreen> {
           ],
         ),
         child: Row(
+          mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             SizedBox(
@@ -1183,81 +1305,85 @@ class _LanguageSelectedScreenState extends State<LanguageSelectedScreen> {
               ),
             ),
             SizedBox(width: 30.w),
-            Text(
-              _selectedLang == 1 ? "ADWAITHA SANGAMAM" : "అద్వైత సంగమం",
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Fontpalette.white45500.copyWith(color: green),
+            Flexible(
+              child: Text(
+                _selectedLang == 1 ? "ADWAITHA SANGAMAM" : "అద్వైత సంగమం",
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Fontpalette.white45500.copyWith(color: green),
+              ),
             ),
             SizedBox(width: 14.w),
             Icon(Icons.open_in_new, color: green, size: 28.h),
           ],
         ),
       ),
+    ),
+  );
+}
+
+Widget _buildMenu(HomeProvider home) {
+  final deities = home.deitiesResponse?.data;
+
+  final List<Widget> content = [];
+
+  if (deities == null) {
+    content.add(
+      Center(
+        child: CircularProgressIndicator(color: HexColor("#EC5002")),
+      ).verticalPadding(30.h),
     );
-  }
-  // Deity buttons from the getDeities API, two per row,
-  // followed by the separate Adwaitha Sangamam container.
-  Widget _buildMenu(HomeProvider home) {
-    final deities = home.deitiesResponse?.data;
+  } else {
+    final buttons = <Widget>[
+      for (final deity in deities)
+        _menuButton(
+          label:
+              _selectedLang == 1
+                  ? (deity.name ?? '').toUpperCase()
+                  : (deity.nameMal ?? deity.name ?? ''),
+          onTap: () {
+            home.clearStoredData();
+            home.clearGrossAmount();
+            navigatescrren(
+              context: context,
+              page: Bookpoojascreen(
+                lanid: _selectedLang,
+                deityId: deity.id,
+                deityName: _selectedLang == 1 ? deity.name : deity.nameMal,
+                isEHundi: HomeProvider.isEHundiDeity(deity.name),
+                rateEditable: [
+                  '1',
+                  'true',
+                ].contains(deity.rateeditable?.toString()),
+              ),
+            );
+          },
+        ),
+    ];
 
-    final List<Widget> content = [];
-
-    if (deities == null) {
+    for (var i = 0; i < buttons.length; i += 2) {
+      if (content.isNotEmpty) content.add(_menuDivider());
       content.add(
-        Center(
-          child: CircularProgressIndicator(color: HexColor("#EC5002")),
-        ).verticalPadding(30.h),
-      );
-    } else {
-      final buttons = <Widget>[
-        for (final deity in deities)
-          _menuButton(
-            label:
-                _selectedLang == 1
-                    ? (deity.name ?? '').toUpperCase()
-                    : (deity.nameMal ?? deity.name ?? ''),
-            onTap: () {
-              home.clearStoredData();
-              home.clearGrossAmount();
-              navigatescrren(
-                context: context,
-                page: Bookpoojascreen(
-                  lanid: _selectedLang,
-                  deityId: deity.id,
-                  deityName: _selectedLang == 1 ? deity.name : deity.nameMal,
-                  rateEditable: [
-                    '1',
-                    'true',
-                  ].contains(deity.rateeditable?.toString()),
-                ),
-              );
-            },
-          ),
-      ];
-
-      for (var i = 0; i < buttons.length; i += 2) {
-        if (content.isNotEmpty) content.add(_menuDivider());
-        content.add(
-          Row(
-            children: [
-              buttons[i],
-              if (i + 1 < buttons.length) ...[
-                SizedBox(width: 10.h),
-                buttons[i + 1],
-              ],
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            buttons[i],
+            if (i + 1 < buttons.length) ...[
+              SizedBox(width: 10.w),
+              buttons[i + 1],
             ],
-          ),
-        );
-      }
+          ],
+        ),
+      );
     }
-
-    content.add(24.verticalSpace);
-    content.add(_adwaithaSangamamButton());
-
-    return Column(children: content).horizontalPadding(200.w);
   }
+
+  content.add(24.verticalSpace);
+  content.add(_adwaithaSangamamButton());
+
+  return Column(children: content).horizontalPadding(200.w);
+}
 
   @override
   Widget build(BuildContext context) {
@@ -1463,6 +1589,18 @@ class _LanguageSelectedScreenState extends State<LanguageSelectedScreen> {
                                 ),
                               ),
                             ),
+                            Container(
+                                  height: 107.h,
+                                  width: 500.w,
+                                  decoration: BoxDecoration(
+                                    image: DecorationImage(
+                                      fit: BoxFit.contain,
+                                      image: AssetImage(
+                                        "assets/images/sbi.jpeg",
+                                      ),
+                                    ),
+                                  ),
+                          ),
                             Text(
                               "www.punnyamtemplesuite.com",
                               style: Fontpalette.brown30600,

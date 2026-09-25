@@ -1,11 +1,14 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_thermal_printer/flutter_thermal_printer.dart';
 import 'package:flutter_thermal_printer/flutter_thermal_printer_platform_interface.dart';
 import 'package:flutter_thermal_printer/utils/printer.dart';
-// import 'package:http/http.dart' as http;
+import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart' show DateFormat;
 import 'package:kalady_kiosk/color_pallatte.dart';
 import 'package:kalady_kiosk/extension.dart';
@@ -17,9 +20,12 @@ import 'package:kalady_kiosk/services/helpers.dart';
 import 'package:kalady_kiosk/services/provider_helper_class.dart';
 // import 'package:kalady_kiosk/view/encrypt.dart';
 import 'package:kalady_kiosk/view/homepage.dart';
+import 'package:kalady_kiosk/provider/payment_provider.dart';
 import 'package:provider/provider.dart';
-
+import 'package:qr_flutter/qr_flutter.dart';
 import 'package:razorpay_flutter/razorpay_flutter.dart';
+
+// import 'package:razorpay_flutter/razorpay_flutter.dart';
 
 class PreviewScreen extends StatefulWidget {
   const PreviewScreen({super.key, this.lanid});
@@ -30,12 +36,22 @@ class PreviewScreen extends StatefulWidget {
 
 class _PreviewScreenState extends State<PreviewScreen> {
   final ValueNotifier<bool> isEnabled = ValueNotifier<bool>(false);
-  final Razorpay _razorpay = Razorpay();
+   final Razorpay _razorpay = Razorpay();
 
-  // Kalady Sankara Madom (as.kaladyshankaramadomts.org) Razorpay live key.
-  static const String razorpayKey = 'rzp_live_drsvRJJ88Gwafu';
-  // TODO: confirm the payment-mode id the backend expects for Razorpay payments.
-  static const int razorpayPaymentMode = 6;
+  // // Kalady Sankara Madom (as.kaladyshankaramadomts.org) Razorpay live key.
+   static const String razorpayKey = 'rzp_live_drsvRJJ88Gwafu';
+  // // TODO: confirm the payment-mode id the backend expects for Razorpay payments.
+   static const int razorpayPaymentMode = 6;
+
+  // UPI QR payment (sib/qr/generate).
+  static const String qrTransactionNote = 'test';
+  // Must be unique per QR: UPI apps reject a reused reference ("tr"), which
+  // is why a fixed "testing" made GPay fail. Letters + digits only.
+  static String newTransactionReference() =>
+      'KLDK${DateTime.now().millisecondsSinceEpoch}';
+  static const int qrExpireMinutes = 15;
+  // TODO: confirm the payment-mode id the backend expects for QR payments.
+  static const int qrPaymentMode = 6;
   final _flutterThermalPrinterPlugin = FlutterThermalPrinter.instance;
 
   // Characters per line on 58mm paper (use 48 for 80mm).
@@ -58,7 +74,7 @@ class _PreviewScreenState extends State<PreviewScreen> {
 
   @override
   void dispose() {
-    _razorpay.clear();
+     _razorpay.clear();
     _stopScan();
     super.dispose();
   }
@@ -485,6 +501,7 @@ class _PreviewScreenState extends State<PreviewScreen> {
     String? mode,
     String? total,
     String? website,
+    String? billImage,
     List<PoojaDetails>? pooja,
   }) async {
     if (connectedPrinter == null) return;
@@ -553,6 +570,7 @@ class _PreviewScreenState extends State<PreviewScreen> {
         pooja: pooja,
         total: total,
         website: website,
+        logo: await _loadLogoRaster(billImage: billImage),
       );
 
       // Never let a stuck printer keep the kiosk on this screen.
@@ -565,6 +583,80 @@ class _PreviewScreenState extends State<PreviewScreen> {
     } catch (e, st) {
       Helpers.successToast("Error while printing: $e");
       debugPrintStack(stackTrace: st);
+    }
+  }
+
+  // Logo printed at the top of the receipt (256 of the 384 dots on 58mm paper).
+  // Comes from the API's bill_image; the bundled logo is only a fallback.
+  static const String _logoAsset = 'assets/images/kalady_logo.jpg';
+  static const int _logoWidth = 256;
+  List<int>? _logoRaster;
+  String? _logoRasterSource;
+
+  // bill_image may be a URL or base64 (optionally a data: URI).
+  Future<Uint8List?> _fetchBillImage(String billImage) async {
+    try {
+      if (billImage.startsWith('http')) {
+        final res = await http
+            .get(Uri.parse(billImage))
+            .timeout(const Duration(seconds: 10));
+        return res.statusCode == 200 ? res.bodyBytes : null;
+      }
+      final base64Data =
+          billImage.contains(',') ? billImage.split(',').last : billImage;
+      return base64Decode(base64Data);
+    } catch (e) {
+      debugPrint('bill_image load error ($billImage): $e');
+      return null;
+    }
+  }
+
+  // Converts the logo to an ESC/POS raster image (GS v 0): each pixel darker
+  // than mid-grey becomes a printed dot. Cached per image source.
+  Future<List<int>?> _loadLogoRaster({String? billImage}) async {
+    final source =
+        (billImage ?? '').trim().isNotEmpty ? billImage!.trim() : _logoAsset;
+    if (_logoRaster != null && _logoRasterSource == source) return _logoRaster;
+    try {
+      Uint8List? imageBytes;
+      if (source != _logoAsset) imageBytes = await _fetchBillImage(source);
+      imageBytes ??= (await rootBundle.load(_logoAsset)).buffer.asUint8List();
+      final codec = await ui.instantiateImageCodec(
+        imageBytes,
+        targetWidth: _logoWidth,
+      );
+      final image = (await codec.getNextFrame()).image;
+      final rgba = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+      if (rgba == null) return null;
+      final width = image.width;
+      final height = image.height;
+      final bytesPerRow = (width + 7) ~/ 8;
+      final raster = List<int>.filled(bytesPerRow * height, 0);
+      for (int y = 0; y < height; y++) {
+        for (int x = 0; x < width; x++) {
+          final i = (y * width + x) * 4;
+          final r = rgba.getUint8(i);
+          final g = rgba.getUint8(i + 1);
+          final b = rgba.getUint8(i + 2);
+          final a = rgba.getUint8(i + 3);
+          final luminance = 0.299 * r + 0.587 * g + 0.114 * b;
+          if (a > 127 && luminance < 128) {
+            raster[y * bytesPerRow + (x ~/ 8)] |= 0x80 >> (x % 8);
+          }
+        }
+      }
+      image.dispose();
+      _logoRaster = [
+        29, 118, 48, 0, // GS v 0, normal size
+        bytesPerRow & 0xFF, bytesPerRow >> 8,
+        height & 0xFF, height >> 8,
+        ...raster,
+      ];
+      _logoRasterSource = source;
+      return _logoRaster;
+    } catch (e) {
+      debugPrint('Logo load error: $e');
+      return null;
     }
   }
 
@@ -592,6 +684,7 @@ class _PreviewScreenState extends State<PreviewScreen> {
     String? total,
     String? website,
     List<PoojaDetails>? pooja,
+    List<int>? logo,
   }) {
     List<int> bytes = [];
 
@@ -600,6 +693,10 @@ class _PreviewScreenState extends State<PreviewScreen> {
 
     // ---------------- Header: temple name + address ----------------
     bytes += [27, 97, 1]; // ESC a 1 -> center align
+    if (logo != null) {
+      bytes += logo;
+      bytes += utf8.encode("\n");
+    }
     bytes += [27, 69, 1]; // ESC E 1 -> bold on
     bytes += utf8.encode("${(name ?? 'NA').toUpperCase()}\n");
     bytes += [27, 69, 0]; // bold off
@@ -614,7 +711,16 @@ class _PreviewScreenState extends State<PreviewScreen> {
 
     // ---------------- Title ----------------
     bytes += [27, 69, 1]; // bold on
-    bytes += utf8.encode("Seva Receipt\n");
+    // Deity name(s) of the bill, e.g. "ANNADHANAM Receipt".
+    final deities =
+        (pooja ?? [])
+            .map((item) => (item.diety ?? '').trim())
+            .where((d) => d.isNotEmpty)
+            .toSet()
+            .join(', ');
+    bytes += utf8.encode(
+      "${deities.isEmpty ? '' : '${deities.toUpperCase()} '}Receipt\n",
+    );
     bytes += [27, 69, 0]; // bold off
     bytes += utf8.encode("\n");
 
@@ -628,6 +734,16 @@ class _PreviewScreenState extends State<PreviewScreen> {
     if (pooja != null && pooja.isNotEmpty) {
       for (int i = 0; i < pooja.length; i++) {
         final item = pooja[i];
+        // E-Hundi: print only the amount.
+        if (item.name == HomeProvider.eHundiName) {
+          bytes += utf8.encode(
+            "${_twoColumnText('${i + 1}. Amount', 'Rs.${item.rate ?? '0'}')}\n",
+          );
+          if (i != pooja.length - 1) {
+            bytes += utf8.encode("\n");
+          }
+          continue;
+        }
         // "Kiosk User" is a placeholder name, not a real devotee.
         final personName = item.name == "Kiosk User" ? '' : (item.name ?? '');
         final star = item.star ?? '';
@@ -638,9 +754,10 @@ class _PreviewScreenState extends State<PreviewScreen> {
         );
         bytes += [27, 69, 0]; // bold off
 
-        if ((item.diety ?? '').isNotEmpty) {
-          bytes += utf8.encode("   ${item.diety}\n");
-        }
+        // Deity is printed in the heading instead.
+        // if ((item.diety ?? '').isNotEmpty) {
+        //   bytes += utf8.encode("   ${item.diety}\n");
+        // }
 
         final itemLabel = "   ${item.pooja ?? 'NA'} x${item.qty ?? 1}";
         final itemAmount = "Rs.${item.rate ?? '0'}";
@@ -723,6 +840,59 @@ class _PreviewScreenState extends State<PreviewScreen> {
     );
   }
 
+  // Continue: generate the UPI QR for the bill amount and show it.
+  Future<void> _startQrPayment() async {
+    if (isEnabled.value) return;
+    final amount = context.read<HomeProvider>().grossamount;
+    if (amount == null || amount <= 0) {
+      Helpers.successToast("Invalid amount");
+      return;
+    }
+    isEnabled.value = true;
+    final payment = context.read<PaymentProvider>();
+    await payment.generateQr(
+      amount: amount,
+      transactionNote: qrTransactionNote,
+      transactionReference: newTransactionReference(),
+      expireMinutes: qrExpireMinutes,
+    );
+    if (!mounted) return;
+    final intentUrl = payment.intentUrl;
+    if (intentUrl == null || intentUrl.isEmpty) {
+      isEnabled.value = false;
+      Helpers.successToast(
+        payment.qrResponse?.message ?? "Unable to generate QR code",
+      );
+      return;
+    }
+    // The dialog polls sib/qr/check-status and closes with the result:
+    // 'success', 'failed', or null (cancelled / expired).
+    final result = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder:
+          (_) => _QrPaymentDialog(
+            intentUrl: intentUrl,
+            amount: amount,
+            expireMinutes: qrExpireMinutes,
+          ),
+    );
+    if (!mounted) return;
+    if (result == 'success') {
+      final transId = payment.paymentReference;
+      payment.clearPayment();
+      // Keeps the button disabled until the bill is saved and printed.
+      await _saveBillAndPrint(transId: transId, paymentMode: qrPaymentMode);
+      return;
+    }
+    payment.clearPayment();
+    isEnabled.value = false;
+    if (result == 'failed') {
+      showPaymentStatusDialog("Payment failed");
+    }
+  }
+
+  // Saves the bill and prints the receipt after the QR payment succeeds.
   Future<void> _saveBillAndPrint({String? transId, int? paymentMode}) async {
     final home = context.read<HomeProvider>();
     // bool connected = await PrinterService.connect();
@@ -792,6 +962,9 @@ class _PreviewScreenState extends State<PreviewScreen> {
             mode: home.saveBillResponse?.summary?.mode?.toString() ?? '',
             total: home.saveBillResponse?.summary?.total?.toString() ?? '',
             website: home.saveBillResponse?.temple?.website ?? '',
+            billImage:
+                home.saveBillResponse?.billimage ??
+                home.previewBillResponse?.data?.billimage,
             pooja:
                 (previewItems != null && previewItems.isNotEmpty)
                     ? previewItems
@@ -1190,6 +1363,8 @@ class _PreviewScreenState extends State<PreviewScreen> {
                                 builder:
                                     (context, value, child) => InkWell(
                                       onTap: () {
+
+                                      //   // ------this is the correct --------------------------------------------------------
                                         if (isEnabled.value) return;
                                         // Don't take payment without a receipt printer.
                                         if (connectedPrinter == null) {
@@ -1201,6 +1376,13 @@ class _PreviewScreenState extends State<PreviewScreen> {
                                         }
                                         isEnabled.value = true;
                                         paymentrazorpay(amt: home.grossamount);
+                                      //  // -----------------------------------------------------------------
+                                        //_startQrPayment();
+
+
+                                        
+
+
                                       },
                                       // onTap: () async {
                                       //   isEnabled.value = true;
@@ -1472,6 +1654,131 @@ class _PreviewScreenState extends State<PreviewScreen> {
               ],
             ),
           ),
+    );
+  }
+}
+
+// Shows the UPI QR with the amount and a countdown until it expires.
+class _QrPaymentDialog extends StatefulWidget {
+  const _QrPaymentDialog({
+    required this.intentUrl,
+    required this.amount,
+    required this.expireMinutes,
+  });
+  final String intentUrl;
+  final double amount;
+  final int expireMinutes;
+
+  @override
+  State<_QrPaymentDialog> createState() => _QrPaymentDialogState();
+}
+
+class _QrPaymentDialogState extends State<_QrPaymentDialog> {
+  late int _secondsLeft = widget.expireMinutes * 60;
+  Timer? _timer;
+  Timer? _statusTimer;
+  bool _checking = false;
+  bool _closed = false;
+
+  // How often sib/qr/check-status is called while the QR is shown.
+  static const Duration _statusInterval = Duration(seconds: 5);
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (_secondsLeft <= 1) {
+        // One last check in case the payment landed just before expiry.
+        _checkStatus(isFinal: true);
+        return;
+      }
+      setState(() => _secondsLeft--);
+    });
+    _statusTimer = Timer.periodic(_statusInterval, (_) => _checkStatus());
+  }
+
+  Future<void> _checkStatus({bool isFinal = false}) async {
+    if (_checking || _closed) return;
+    _checking = true;
+    final payment = context.read<PaymentProvider>();
+    await payment.checkPaymentStatus();
+    _checking = false;
+    if (!mounted || _closed) return;
+    if (payment.paymentState == 'success') {
+      _close('success');
+    } else if (payment.paymentState == 'failed') {
+      _close('failed');
+    } else if (isFinal) {
+      Helpers.successToast("QR code expired. Please try again.");
+      _close(null);
+    }
+  }
+
+  // Check once more before closing, in case the customer already paid.
+  Future<void> _cancel() async {
+    await _checkStatus();
+    if (!mounted || _closed) return;
+    _close(null);
+  }
+
+  void _close(String? result) {
+    if (_closed) return;
+    _closed = true;
+    _timer?.cancel();
+    _statusTimer?.cancel();
+    Navigator.of(context).pop(result);
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _statusTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final minutes = (_secondsLeft ~/ 60).toString().padLeft(2, '0');
+    final seconds = (_secondsLeft % 60).toString().padLeft(2, '0');
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20.r)),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text("Scan to pay", style: Fontpalette.blackinter50400),
+          10.verticalSpace,
+          Text(
+            "₹ ${widget.amount.toStringAsFixed(0)}",
+            style: Fontpalette.black60700,
+          ),
+          20.verticalSpace,
+          SizedBox(
+            width: 500.w,
+            height: 500.w,
+            child: QrImageView(
+              data: widget.intentUrl,
+              backgroundColor: Colors.white,
+            ),
+          ),
+          20.verticalSpace,
+          Text(
+            "Scan with any UPI app",
+            textAlign: TextAlign.center,
+            style: Fontpalette.blackinter45400,
+          ),
+          10.verticalSpace,
+          Text(
+            "Expires in $minutes:$seconds",
+            style: Fontpalette.blackinter45400.copyWith(color: Colors.red),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: _cancel,
+          child: Text("Cancel", style: Fontpalette.blackinter45400),
+        ),
+      ],
     );
   }
 }

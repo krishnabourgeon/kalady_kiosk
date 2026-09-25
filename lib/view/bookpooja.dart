@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart' show DateFormat;
 import 'package:kalady_kiosk/color_pallatte.dart';
 import 'package:kalady_kiosk/extension.dart';
 import 'package:kalady_kiosk/fontpallate.dart';
@@ -21,7 +22,10 @@ class Bookpoojascreen extends StatefulWidget {
     this.deityId,
     this.deityName,
     this.rateEditable = false,
+    this.isEHundi = false,
   });
+  // E-Hundi: only the amount is asked; name/star/date are filled in.
+  final bool isEHundi;
   final int? lanid;
   // Deity's rate_editable == 1: always show the Amount field, even with poojas.
   final bool rateEditable;
@@ -141,7 +145,51 @@ class _BookpoojascreenState extends State<Bookpoojascreen> {
 
   // Amount is typed in when the deity has no poojas or its rate is editable.
   bool _showAmount(HomeProvider home) =>
-      widget.rateEditable || home.isAmountOnly;
+      widget.rateEditable || widget.isEHundi || home.isAmountOnly;
+
+  // E-Hundi: send name "E-HUNDI", star 28 and today's date with the amount.
+  Future<void> _continueEHundi(HomeProvider home) async {
+    final enteredAmount = double.tryParse(amt.text);
+    if (enteredAmount == null || enteredAmount <= 0) {
+      Helpers.successToast("Please enter a valid  amount");
+      return;
+    }
+    FocusScope.of(context).unfocus();
+    isEnabled.value = true;
+    final eHundiStars =
+        home.starsResponse?.data
+            ?.where((s) => s.id == HomeProvider.eHundiStarId)
+            .toList() ??
+        [];
+    home.clearGrossAmount();
+    await home.addToPoojaDetails(
+      name: HomeProvider.eHundiName,
+      starid: HomeProvider.eHundiStarId,
+      star:
+          eHundiStars.isEmpty
+              ? null
+              : (widget.lanid == 1
+                  ? eHundiStars.first.nameEng
+                  : eHundiStars.first.nameMal),
+      date: DateFormat('yyyy-MM-dd').format(DateTime.now()),
+      dietyid: home.dietyId,
+      diety: home.dietyIName,
+      poojaname: home.selectedPoojaName ?? home.dietyIName,
+      poojaid: HomeProvider.eHundiPoojaId,
+      rate: amt.text,
+    );
+    await home.getPreviewBill(
+      onSuccess: () async {
+        navigatescrren(page: PreviewScreen(), context: context);
+        home.clearStoredData();
+        amt.clear();
+        isEnabled.value = false;
+      },
+      onFailure: () {
+        isEnabled.value = false;
+      },
+    );
+  }
 
   // Rate-editable deity: pre-fill the amount with the pooja's rate.
   void _onPoojaSelected(String? rate) {
@@ -284,173 +332,188 @@ class _BookpoojascreenState extends State<Bookpoojascreen> {
                               ),
                               child: Column(
                                 children: [
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: Column(
+                                  if (!widget.isEHundi) ...[
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                "Name",
+                                                style:
+                                                    Fontpalette.blackinter40400,
+                                              ),
+                                              5.verticalSpace,
+                                              Container(
+                                                height: 50.h,
+
+                                                decoration: BoxDecoration(
+                                                  borderRadius:
+                                                      BorderRadius.circular(
+                                                        21.r,
+                                                      ),
+                                                  border: Border.all(
+                                                    color: Colors.black,
+                                                  ),
+                                                ),
+                                                child: TextField(
+                                                  controller: name,
+                                                  //onChanged: _onNameChanged,
+                                                  style:
+                                                      Fontpalette
+                                                          .blackinter45400,
+                                                  textAlignVertical:
+                                                      TextAlignVertical.center,
+                                                  decoration: InputDecoration(
+                                                    isDense: true,
+                                                    contentPadding:
+                                                        EdgeInsets.symmetric(
+                                                          vertical: 15.h,
+                                                          horizontal: 40.w,
+                                                        ),
+
+                                                    hintText: " ",
+                                                    hintStyle:
+                                                        Fontpalette
+                                                            .blackinter24400,
+                                                    border: InputBorder.none,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        30.horizontalSpace,
+                                        Column(
                                           crossAxisAlignment:
                                               CrossAxisAlignment.start,
                                           children: [
                                             Text(
-                                              "Name",
+                                              "Choose date",
                                               style:
                                                   Fontpalette.blackinter40400,
                                             ),
                                             5.verticalSpace,
-                                            Container(
-                                              height: 50.h,
-
-                                              decoration: BoxDecoration(
-                                                borderRadius:
-                                                    BorderRadius.circular(21.r),
-                                                border: Border.all(
-                                                  color: Colors.black,
-                                                ),
-                                              ),
-                                              child: TextField(
-                                                controller: name,
-                                                //onChanged: _onNameChanged,
-                                                style:
-                                                    Fontpalette.blackinter45400,
-                                                textAlignVertical:
-                                                    TextAlignVertical.center,
-                                                decoration: InputDecoration(
-                                                  isDense: true,
-                                                  contentPadding:
-                                                      EdgeInsets.symmetric(
-                                                        vertical: 15.h,
-                                                        horizontal: 40.w,
+                                            InkWell(
+                                              onTap: () => pickDate(),
+                                              child: Container(
+                                                height: 50.h,
+                                                width: 500.w,
+                                                decoration: BoxDecoration(
+                                                  borderRadius:
+                                                      BorderRadius.circular(
+                                                        21.r,
                                                       ),
-
-                                                  hintText: " ",
-                                                  hintStyle:
-                                                      Fontpalette
-                                                          .blackinter24400,
-                                                  border: InputBorder.none,
+                                                  border: Border.all(
+                                                    color: Colors.black,
+                                                  ),
+                                                ),
+                                                child: Row(
+                                                  children: [
+                                                    Text(
+                                                      home.selecteddate ?? '',
+                                                      style:
+                                                          Fontpalette
+                                                              .blackinter45400,
+                                                    ).horizontalPadding(40.w),
+                                                  ],
                                                 ),
                                               ),
                                             ),
                                           ],
                                         ),
-                                      ),
-                                      30.horizontalSpace,
-                                      Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            "Choose date",
-                                            style: Fontpalette.blackinter40400,
-                                          ),
-                                          5.verticalSpace,
-                                          InkWell(
-                                            onTap: () => pickDate(),
-                                            child: Container(
-                                              height: 50.h,
-                                              width: 500.w,
-                                              decoration: BoxDecoration(
-                                                borderRadius:
-                                                    BorderRadius.circular(21.r),
-                                                border: Border.all(
-                                                  color: Colors.black,
-                                                ),
-                                              ),
-                                              child: Row(
-                                                children: [
-                                                  Text(
-                                                    home.selecteddate ?? '',
-                                                    style:
-                                                        Fontpalette
-                                                            .blackinter45400,
-                                                  ).horizontalPadding(40.w),
-                                                ],
-                                              ),
+                                      ],
+                                    ),
+                                    10.verticalSpace,
+                                    Row(
+                                      children: [
+                                        Text(
+                                          "Select star",
+                                          style: Fontpalette.blackinter40400,
+                                        ),
+                                      ],
+                                    ),
+                                    5.verticalSpace,
+                                    SizedBox(
+                                      height: 35.h,
+                                      child: ListView.builder(
+                                        scrollDirection: Axis.horizontal,
+                                        itemCount:
+                                            home.starsResponse?.data?.length ??
+                                            0,
+                                        itemBuilder: (context, index) {
+                                          return Padding(
+                                            padding: EdgeInsets.only(
+                                              right: 15.w,
                                             ),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                  10.verticalSpace,
-                                  Row(
-                                    children: [
-                                      Text(
-                                        "Select star",
-                                        style: Fontpalette.blackinter40400,
-                                      ),
-                                    ],
-                                  ),
-                                  5.verticalSpace,
-                                  SizedBox(
-                                    height: 35.h,
-                                    child: ListView.builder(
-                                      scrollDirection: Axis.horizontal,
-                                      itemCount:
-                                          home.starsResponse?.data?.length ?? 0,
-                                      itemBuilder: (context, index) {
-                                        return Padding(
-                                          padding: EdgeInsets.only(right: 15.w),
-                                          child: InkWell(
-                                            onTap: () {
-                                              FocusScope.of(context).unfocus();
-                                              home.updateSelextedStarId(
-                                                starid:
-                                                    home
-                                                        .starsResponse
-                                                        ?.data![index]
-                                                        .id,
-                                                starname:
-                                                    widget.lanid == 1
-                                                        ? home
-                                                            .starsResponse
-                                                            ?.data![index]
-                                                            .nameEng
-                                                        : home
-                                                            .starsResponse
-                                                            ?.data![index]
-                                                            .nameMal,
-                                              );
-                                            },
-                                            child: Container(
-                                              decoration: BoxDecoration(
-                                                borderRadius:
-                                                    BorderRadius.circular(12.r),
-                                                color:
-                                                    home.selectedStarId ==
-                                                            home
-                                                                .starsResponse
-                                                                ?.data![index]
-                                                                .id
-                                                        ? Colors.black
-                                                            .withOpacity(0.5)
-                                                        : Colors.white,
-                                                border: Border.all(
-                                                  color: HexColor("#D2D2D2"),
-                                                ),
-                                              ),
-                                              child: Center(
-                                                child: Text(
-                                                  widget.lanid == 1
-                                                      ? "${home.starsResponse?.data![index].nameEng}"
-                                                      : "${home.starsResponse?.data![index].nameMal}",
-                                                  style:
-                                                      home.selectedStarId !=
+                                            child: InkWell(
+                                              onTap: () {
+                                                FocusScope.of(
+                                                  context,
+                                                ).unfocus();
+                                                home.updateSelextedStarId(
+                                                  starid:
+                                                      home
+                                                          .starsResponse
+                                                          ?.data![index]
+                                                          .id,
+                                                  starname:
+                                                      widget.lanid == 1
+                                                          ? home
+                                                              .starsResponse
+                                                              ?.data![index]
+                                                              .nameEng
+                                                          : home
+                                                              .starsResponse
+                                                              ?.data![index]
+                                                              .nameMal,
+                                                );
+                                              },
+                                              child: Container(
+                                                decoration: BoxDecoration(
+                                                  borderRadius:
+                                                      BorderRadius.circular(
+                                                        12.r,
+                                                      ),
+                                                  color:
+                                                      home.selectedStarId ==
                                                               home
                                                                   .starsResponse
                                                                   ?.data![index]
                                                                   .id
-                                                          ? Fontpalette
-                                                              .black52700
-                                                          : Fontpalette
-                                                              .white52700,
-                                                ).horizontalPadding(30.w),
+                                                          ? Colors.black
+                                                              .withOpacity(0.5)
+                                                          : Colors.white,
+                                                  border: Border.all(
+                                                    color: HexColor("#D2D2D2"),
+                                                  ),
+                                                ),
+                                                child: Center(
+                                                  child: Text(
+                                                    widget.lanid == 1
+                                                        ? "${home.starsResponse?.data![index].nameEng}"
+                                                        : "${home.starsResponse?.data![index].nameMal}",
+                                                    style:
+                                                        home.selectedStarId !=
+                                                                home
+                                                                    .starsResponse
+                                                                    ?.data![index]
+                                                                    .id
+                                                            ? Fontpalette
+                                                                .black52700
+                                                            : Fontpalette
+                                                                .white52700,
+                                                  ).horizontalPadding(30.w),
+                                                ),
                                               ),
                                             ),
-                                          ),
-                                        );
-                                      },
+                                          );
+                                        },
+                                      ),
                                     ),
-                                  ),
+                                  ],
                                   if (widget.deityId == null) ...[
                                     Row(
                                       children: [
@@ -560,7 +623,7 @@ class _BookpoojascreenState extends State<Bookpoojascreen> {
                                     ),
                                   ],
                                   10.verticalSpace,
-                                  if (!home.isAmountOnly)
+                                  if (!home.isAmountOnly && !widget.isEHundi)
                                     home.len > 15
                                         ? SizedBox(
                                           height: 400.h,
@@ -656,7 +719,7 @@ class _BookpoojascreenState extends State<Bookpoojascreen> {
                                     color: HexColor("#D97000"),
                                   ),
                                   15.verticalSpace,
-                                  if (!home.isAmountOnly)
+                                  if (!home.isAmountOnly && !widget.isEHundi)
                                     Row(
                                       mainAxisAlignment: MainAxisAlignment.end,
                                       children: [
@@ -763,6 +826,10 @@ class _BookpoojascreenState extends State<Bookpoojascreen> {
                               builder:
                                   (context, value, child) => InkWell(
                                     onTap: () async {
+                                      if (widget.isEHundi) {
+                                        await _continueEHundi(home);
+                                        return;
+                                      }
                                       if (home.isAmountOnly) {
                                         home.clearGrossAmount();
                                       }

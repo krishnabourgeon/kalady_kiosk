@@ -381,6 +381,14 @@ class HomeProvider extends ProviderHelperClass with ChangeNotifier {
   static const int coconutPoojaId = 39;
   static const int netBagPoojaId = 58;
 
+  // E-Hundi: amount only — sent with a fixed name/star and today's date.
+  static const String eHundiName = "E-HUNDI";
+  static const int eHundiStarId = 28;
+  static const int eHundiPoojaId = 58;
+  static bool isEHundiDeity(String? deityName) =>
+      (deityName ?? '').toUpperCase().replaceAll(RegExp(r'[^A-Z]'), '') ==
+      'EHUNDI';
+
   // Rate + name/name_mal come straight from the pooja master data (same
   // fields the API returns for the normal pooja list), so Muttarukkal/
   // Coconut/Net Bag print and save with the real Malayalam name instead

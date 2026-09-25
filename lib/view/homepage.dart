@@ -487,12 +487,39 @@ class _MyHomePageState extends State<MyHomePage> {
                               ),
                             ),
                           ),
+                          Container(
+                                  height: 107.h,
+                                  width: 500.w,
+                                  decoration: BoxDecoration(
+                                    image: DecorationImage(
+                                      fit: BoxFit.contain,
+                                      image: AssetImage(
+                                        "assets/images/sbi.jpeg",
+                                      ),
+                                    ),
+                                  ),
+                          ),
                           Text(
                             "www.punnyamtemplesuite.com",
                             style: Fontpalette.brown30600,
                           ),
                         ],
                       ),
+                      SizedBox(height: 40,)
+                      // Center(
+                      //   child: Container(
+                      //           height: 107.h,
+                      //           width: 500.w,
+                      //           decoration: BoxDecoration(
+                      //             image: DecorationImage(
+                      //               fit: BoxFit.contain,
+                      //               image: AssetImage(
+                      //                 "assets/images/sbi.jpeg",
+                      //               ),
+                      //             ),
+                      //           ),
+                      //   ),
+                      // ),
                     ],
                   ).horizontalPadding(100.w),
                 ],
